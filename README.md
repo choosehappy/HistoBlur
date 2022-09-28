@@ -33,6 +33,7 @@ To install HistoBlur, first clone the directory:
 
 ```
 git clone https://github.com/choosehappy/HistoBlur.git
+cd HistoBlur
 ```
 
 If you wish to install the tool in a separate conda environment:
