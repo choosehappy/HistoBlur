@@ -19,7 +19,7 @@ In training mode, patches from the clear non-blurry WSI will be extracted and ga
 in which a patch can either be clear, mildly blurry or highly blurry. The associated patches and labels with the artificially applied levels of blurriness
 are used as a training set for the model.
 The model then trains for the indicated number of epochs and the saved model weights for the best performing model are outputed in the output directory.
-These trained model weights can then be used to detect blurry areas in other WSI of the same straining type.
+These trained model weights can then be used to detect blurry areas in other WSI of the same staining type.
 
 # Detection
 
@@ -84,6 +84,12 @@ This command will analyze all the WSIs matching the provided glob pattern and ou
 in a csv file in the designated output folder. A mask of the blurry regions for each slide will also be outputted.
 
 
+# TO DO LIST
 
+Add better input checks to avoid abigious errors
+Add a function to change path format based on Operating System to allow for Windows compatibility
+Filter package warnings from appearing in user StdOut
+Add logging
+Add another function that performs blur percentage calculation without generating mask to speed things up
 
 
