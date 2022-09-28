@@ -1,17 +1,17 @@
-##HistoBlur
+## HistoBlur
 
-##Warning:
+## Warning:
 This tool is still under development and has only been tested on Linux Ubuntu
 
 
-#Introduction
+# Introduction
 
 HistoBlur is a deep learning based tool that allows for the fast and accurate detection of blurry regions in Whole Slide Images.
 
 HistoBlur has two modes, a training and a detection mode. 
 
 
-#Training
+# Training
 
 In order to detect blurry regions, a DenseNet model needs to be trained for the specific stain being analyzed.
 For that, the user needs to provide one clear non-blurry Whole Slide Image (WSI) for the staining of choice.
@@ -21,13 +21,13 @@ are used as a training set for the model.
 The model then trains for the indicated number of epochs and the saved model weights for the best performing model are outputed in the output directory.
 These trained model weights can then be used to detect blurry areas in other WSI of the same straining type.
 
-#Detection
+# Detection
 
 Once the model has been trained, the user can then provide other file(s) along with the previous trained model weights in order to estimate bluriness.
 The detection mode will output a tissue mask with non blurry regions appearing in green, mildly blurry regions in blue and highly blurry regions in red.
 The tool will also output a csv formatted file with the percentage of mildly and highly blurry regions on the slide.
 
-#Installation
+# Installation
 
 To install HistoBlur, first clone the directory:
 
@@ -60,7 +60,7 @@ To ensure that HistoBlur has been succesfully installed, run the following:
 HistoBlur --help
 ```
 
-#Examples
+# Examples
 
 Since the tool has been tested at a specific magnification and patch size, if the WSI at your disposal are 40x magnification, we recomend using
 default paramenters.
