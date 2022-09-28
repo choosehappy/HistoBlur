@@ -86,10 +86,10 @@ in a csv file in the designated output folder. A mask of the blurry regions for 
 
 # TO DO LIST
 
-Add better input checks to avoid abigious errors
-Add a function to change path format based on Operating System to allow for Windows compatibility
-Filter package warnings from appearing in user StdOut
-Add logging
-Add another function that performs blur percentage calculation without generating mask to speed things up
+Add better input checks to avoid abigious errors.  
+Add a function to change path format based on Operating System to allow for Windows compatibility  
+Filter package warnings from appearing in user StdOut  
+Add logging  
+Add another function that performs blur percentage calculation without generating mask to speed things up  
 
 
