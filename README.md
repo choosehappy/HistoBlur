@@ -1,5 +1,9 @@
 ##HistoBlur
 
+##Warning:
+This tool is still under development and has only been tested on Linux Ubuntu
+
+
 #Introduction
 
 HistoBlur is a deep learning based tool that allows for the fast and accurate detection of blurry regions in Whole Slide Images.
