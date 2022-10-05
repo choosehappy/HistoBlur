@@ -74,6 +74,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
 
     ##### Iterate through images and generate output
     for slide in images:
+        samplebase = os.path.basename(slide)
+        sample = os.path.splitext(samplebase)[0]
         print(f"processing file: {slide}")
         fname=slide
         osh_mask  = wsi(fname)
@@ -231,7 +233,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
         results_dict[sample_name] = [perc_tot, perc_mildly_blurry, perc_very_blurry, slide]
         
         #write mask to output
-        with TiffWriter(f'{outdir}/output_'+slide[slide.rfind('/') + 1:slide.rfind('.')-1 ] + '.tif', bigtiff=True, imagej=True) as tif:
+        with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
         
             tif.save(final_output, compress=6, tile=(16,16) ) 
 

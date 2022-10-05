@@ -64,11 +64,11 @@ HistoBlur --help
 # Examples
 
 Since the tool has been tested at a specific magnification and patch size, if the WSI at your disposal are 40x magnification, we recomend using
-default paramenters.
+default parameters.
 
 To train a model, all you need is a Whole Slide Image with no blur:
 ```
-HistoBlur train -f path/to/wsi.svs -o blur_detection -d blur_detection_histoblur
+HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histoblur
 ```
 
 The following command will create a training and testing set from the provided WSI that will be saved in the 'blur_detection' output folder.
@@ -77,7 +77,7 @@ The two datasets will be used to train a Densenet for 80 epochs, the model will 
 Once the model has been trained, new output can be generated:
 
 ```
-Histoblur detect -f path/to/images_to_test/*.svs -o blur_quality_control -m blur_detection/blur_detection_histoblur_best_model.pth
+Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m blur_detection/blur_detection_histoblur_best_model.pth
 ```
 
 This command will analyze all the WSIs matching the provided glob pattern and output a csv file with the percentage of bluriness for each
