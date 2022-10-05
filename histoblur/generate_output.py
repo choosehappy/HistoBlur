@@ -228,9 +228,9 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
         perc_very_blurry = round(total_very_blurry/total_classified_patches*100, 3)
         perc_mildly_blurry = round(total_mildly_blurry/total_classified_patches*100, 3)
                                                                             
-        sample_name = os.path.basename(slide)
+        
         #add results to dictionary
-        results_dict[sample_name] = [perc_tot, perc_mildly_blurry, perc_very_blurry, slide]
+        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, slide]
         
         #write mask to output
         with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
