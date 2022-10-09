@@ -54,9 +54,9 @@ def get_args():
     
     Detect_parser.add_argument('-f', '--input_wsi', help="directory to WSI image file(s)", required=True, default="", type=str)
 
-    Detect_parser.add_argument('-p', '--patchsize', help="patchsize, default 16", default=16, type=int)
+    Detect_parser.add_argument('-p', '--patchsize', help="patchsize, default 256", default=256, type=int)
 
-    Detect_parser.add_argument('-s', '--batchsize', help="batchsize for controlling GPU memory usage ,default 128", default=128, type=int)
+    Detect_parser.add_argument('-s', '--batchsize', help="batchsize for controlling GPU memory usage ,default 16", default=16, type=int)
 
     Detect_parser.add_argument('-o', '--outdir', help="output directory, default '.' ", default=".", type=str)
 
