@@ -43,7 +43,7 @@ class Args_Detect(NamedTuple):
     level: int
 
 
-def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_size, patch_size, level):
+def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_size, patch_size):
     """"Function that generates output """
 
 
@@ -53,6 +53,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
     device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
 
     checkpoint = torch.load(model, map_location=lambda storage, loc: storage) #load checkpoint to CPU and then put to device https://discuss.pytorch.org/t/saving-and-loading-torch-models-on-2-machines-with-different-number-of-gpu-devices/6666
+
+    level = checkpoint["level"]
 
     model = DenseNet(growth_rate=checkpoint["growth_rate"], block_config=checkpoint["block_config"],
                     num_init_features=checkpoint["num_init_features"], bn_size=checkpoint["bn_size"],
@@ -127,9 +129,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
 
         
         #change the stride size to speed up the process, must equal factor between levels 
-        stride_size = patch_size//4
-        tile_size=stride_size*8*2
-        tile_pad=patch_size-stride_size
+        stride_size = patch_size #Use non overlapping patches
+        tile_size=patch_size*4 #the bigger the tile size the smaller the resolution of the mask. x4 the patch size is a good tradeoff
         nclasses=3
 
 
@@ -153,8 +154,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
                     continue
                 
                 
-                output = np.zeros((0,nclasses,patch_size//patch_size,patch_size//patch_size))
-                io = np.asarray(osh.read_region((x, y), level, (tile_size+tile_pad,tile_size+tile_pad)))[:,:,0:3] #trim alpha
+                output = np.zeros((0,nclasses,1,1))
+                io = np.asarray(osh.read_region((x, y), level, (tile_size,tile_size)))[:,:,0:3] #trim alpha
                 
                 arr_out=sklearn.feature_extraction.image._extract_patches(io,(patch_size,patch_size,3),stride_size)
                 arr_out_shape = arr_out.shape
@@ -165,14 +166,14 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
                 for batch_arr in divide_batch(arr_out,batch_size):
                 
                     arr_out_gpu = torch.from_numpy(batch_arr.transpose(0, 3, 1, 2) / 255).type('torch.FloatTensor').to(device)
+                    with torch.no_grad():
+                        # ---- get results
+                        output_batch = model(arr_out_gpu)
 
-                    # ---- get results
-                    output_batch = model(arr_out_gpu)
+                        # --- pull from GPU and append to rest of output 
+                        output_batch = output_batch.detach().cpu().numpy()
 
-                    # --- pull from GPU and append to rest of output 
-                    output_batch = output_batch.detach().cpu().numpy()
-
-                    output_batch_color=cmap(output_batch.argmax(axis=1), alpha=None)[:,0:3]
+                        output_batch_color=cmap(output_batch.argmax(axis=1), alpha=None)[:,0:3]
                     output = np.append(output,output_batch_color[:,:,None,None],axis=0)
                     
                 
@@ -180,11 +181,11 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
                 
                 #turn from a single list into a matrix of tiles
                 output = output.reshape(arr_out_shape[0],arr_out_shape[1],patch_size//patch_size,patch_size//patch_size,output.shape[3])
-                output3 = output
+                
                 
                 #turn all the tiles into an image
                 output=np.concatenate(np.concatenate(output,1),1)
-                output4 = output
+                
                 
                 
                 npmm[y//stride_size//ds:y//stride_size//ds+tile_size//stride_size,x//stride_size//ds:x//stride_size//ds+tile_size//stride_size,:]=output*255 #need to save uint8
@@ -242,4 +243,3 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
     results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "file_path"]
 
     return results_df
-

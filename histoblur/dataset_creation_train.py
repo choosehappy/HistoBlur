@@ -212,7 +212,7 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
 
 
-def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, phases, num_epochs, output_dir, validation_phases):
+def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, phases, num_epochs, output_dir, validation_phases, sample_level):
     ############## Model training
     
     ## Model params
@@ -342,7 +342,8 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
         if all_loss["val"] < best_loss_on_test:
             best_loss_on_test = all_loss["val"]
             print("  **")
-            state = {'epoch': epoch + 1,
+            state = { 'level': sample_level,
+             'epoch': epoch + 1,
              'model_dict': model.state_dict(),
              'optim_dict': optim.state_dict(),
              'best_loss_on_test': all_loss,

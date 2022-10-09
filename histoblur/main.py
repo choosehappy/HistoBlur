@@ -54,7 +54,7 @@ def get_args():
     
     Detect_parser.add_argument('-f', '--input_wsi', help="directory to WSI image file(s)", required=True, default="", type=str)
 
-    Detect_parser.add_argument('-p', '--patchsize', help="patchsize, default 256", default=256, type=int)
+    Detect_parser.add_argument('-p', '--patchsize', help="patchsize, default 16", default=16, type=int)
 
     Detect_parser.add_argument('-s', '--batchsize', help="batchsize for controlling GPU memory usage ,default 128", default=128, type=int)
 
@@ -126,18 +126,17 @@ def main() -> None:
         print("Dataset preparation complete")
         print("Beginning model training")
         model_path = train_model(path_to_pytables_list=dataset_train_val, dataname=args.dataset_name, gpuid=args.gpuid, batch_size=args.batchsize,
-         patch_size=args.patchsize, phases=phases, num_epochs=args.epochs, output_dir=args.outdir, validation_phases=validation_phases)
+         patch_size=args.patchsize, phases=phases, num_epochs=args.epochs, output_dir=args.outdir, validation_phases=validation_phases,sample_level=args.level)
         print(f"Training complete, model can be found at '{model_path}' and can be used to detect blurry regions")
 
     ############## GENERATE OUTPUT
 
     if args.mode == "detect":
         results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, mask_level=args.mask_level,
-        batch_size=args.batchsize, patch_size=args.patchsize, level=args.level)
+        batch_size=args.batchsize, patch_size=args.patchsize)
         results_df.to_csv(f"{args.outdir}/results_overview.csv", sep=",")
         print("Analysis complete")
 
 if __name__ == "__main__":
-    start_time = time.time()
+    
     main()
-    print(f"HistoBlur runtime: {str(datetime.timedelta(time.time() - start_time))}")
