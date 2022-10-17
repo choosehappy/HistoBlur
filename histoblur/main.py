@@ -66,9 +66,6 @@ def get_args():
 
     Detect_parser.add_argument('-t', '--enablemask', action="store_true")
 
-    Detect_parser.add_argument('-k', '--mask_level',help="level of input mask", default=2, type=int)
-
-    Detect_parser.add_argument('-l', '--extraction_level',help="openslide level at which to extract patches (should match the one used in training)", default=1, type=int)
 
 
     args = parser.parse_args()
@@ -83,7 +80,7 @@ def get_args():
 
     elif args.mode == "detect":
         return Args_Detect(args.mode, args.input_wsi, args.patchsize, args.batchsize, args.outdir, args.model, args.gpuid,
-         args.enablemask, args.mask_level,args.extraction_level)
+         args.enablemask)
     else:
         parser.error("Mode not provided - please select between train and detect")
 
@@ -132,7 +129,7 @@ def main() -> None:
     ############## GENERATE OUTPUT
 
     if args.mode == "detect":
-        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, mask_level=args.mask_level,
+        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask,
         batch_size=args.batchsize, patch_size=args.patchsize)
         results_df.to_csv(f"{args.outdir}/results_overview.csv", sep=",")
         print("Analysis complete")

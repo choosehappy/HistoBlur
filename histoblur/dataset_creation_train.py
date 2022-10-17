@@ -10,6 +10,8 @@ from tqdm.autonotebook import tqdm
 from  skimage.color import rgb2gray
 import cv2
 
+from skimage.morphology import disk
+from skimage.filters import rank
 import os
 import glob
 import openslide
@@ -173,11 +175,14 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
             img = osh.read_region((0, 0), mask_level, osh.level_dimensions[mask_level])
             img = np.asarray(img)[:, :, 0:3]
-            imgg=rgb2gray(img)
-            mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-            kernel = np.ones((5,5), np.uint8)
-            mask = np.float32(mask)
-            mask =  cv2.erode(mask, kernel, iterations=4)
+                
+            disk_size = 5
+            threshold = 200
+            img = rgb2gray(img)
+            img = (img * 255).astype(np.uint8)
+            selem = disk(disk_size)
+            imgfilt = rank.minimum(img, selem)
+            mask= imgfilt < threshold   
 
 
 

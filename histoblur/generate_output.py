@@ -6,7 +6,12 @@ from WSI_handling import wsi
 
 import sklearn.feature_extraction.image
 import matplotlib.pyplot as plt
-import glob
+import cv2
+import matplotlib.pyplot as plt
+import numpy as np
+from skimage.morphology import disk
+from skimage.filters import rank
+
 
 import matplotlib.cm
 import cv2
@@ -39,11 +44,9 @@ class Args_Detect(NamedTuple):
     model: str
     gpuid: int
     enablemask: bool
-    mask_level: int
-    level: int
 
 
-def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_size, patch_size):
+def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_size):
     """"Function that generates output """
 
 
@@ -107,14 +110,13 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
                 
                 img = np.asarray(img)[:, :, 0:3]
                 
-                imgg=rgb2gray(img)
-                mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-                kernel = np.ones((5,5), np.uint8)
-                mask = np.float32(mask)
-                width = int(mask.shape[1] )
-                height = int(mask.shape[0])
-                dim = (width, height)
-                mask =  cv2.erode(mask, kernel, iterations=2)         
+                disk_size = 5
+                threshold = 200
+                img = rgb2gray(img)
+                img = (img * 255).astype(np.uint8)
+                selem = disk(disk_size)
+                imgfilt = rank.minimum(img, selem)
+                mask= imgfilt < threshold       
 
 
     
@@ -150,7 +152,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, mask_level, batch_
                 masky=int(y//osh.level_downsamples[mask_level])
                 
                 
-                if((np.any(maskx>= mask.shape[1])) or np.any(masky>= mask.shape[0]) or not np.any(mask[masky,maskx])): # need to handle rounding error 
+                if((np.any(maskx>= mask.shape[1])) or np.any(masky>= mask.shape[0]) or not np.any(mask[masky,maskx])): # need to handle rounding error.
                     continue
                 
                 
