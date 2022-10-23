@@ -12,6 +12,8 @@ import numpy as np
 from skimage.morphology import disk
 from skimage.filters import rank
 
+import time
+import math
 
 import matplotlib.cm
 import cv2
@@ -45,6 +47,11 @@ class Args_Detect(NamedTuple):
     gpuid: int
     enablemask: bool
 
+    
+def asMinutes(s):
+    m = math.floor(s / 60)
+    s -= m * 60
+    return '%dm %ds' % (m, s)
 
 def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_size):
     """"Function that generates output """
@@ -57,7 +64,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
 
     checkpoint = torch.load(model, map_location=lambda storage, loc: storage) #load checkpoint to CPU and then put to device https://discuss.pytorch.org/t/saving-and-loading-torch-models-on-2-machines-with-different-number-of-gpu-devices/6666
 
-    level = checkpoint["level"]
+    level_training = checkpoint["level"]
 
     model = DenseNet(growth_rate=checkpoint["growth_rate"], block_config=checkpoint["block_config"],
                     num_init_features=checkpoint["num_init_features"], bn_size=checkpoint["bn_size"],
@@ -75,10 +82,12 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
 
     ##### create results dictionary
     results_dict = {}
-
-
+    
+    
     ##### Iterate through images and generate output
     for slide in images:
+        level = level_training
+        start = time.time()
         samplebase = os.path.basename(slide)
         sample = os.path.splitext(samplebase)[0]
         print(f"processing file: {slide}")
@@ -101,13 +110,13 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
             dim = (width, height)
             mask = cv2.resize(mask,dim)
             mask = np.float32(mask)
-        
+            
         
         
         else:
             #add mask creation which skips parts of image
                 
-                
+                print("Generating mask and estimating tissue size")
                 img = np.asarray(img)[:, :, 0:3]
                 
                 disk_size = 5
@@ -116,10 +125,29 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
                 img = (img * 255).astype(np.uint8)
                 selem = disk(disk_size)
                 imgfilt = rank.minimum(img, selem)
-                mask= imgfilt < threshold       
-
-
-    
+                mask= imgfilt < threshold
+                mask_final = imgfilt < threshold
+                tissue_size_pixels = sum(sum(mask))
+                print(f"{tissue_size_pixels} at 8 μm per pixel")
+           
+        
+        if tissue_size_pixels == 0:
+            print("No tissue detected, skipping file")
+            continue
+        if 0 < tissue_size_pixels < 100000:
+            level = 0
+            patch_size = 128
+            print(f"Low tissue quantity detected, using higher magnification, patch size selected {patch_size}, openslide level {level}")
+        elif 99999 < tissue_size_pixels < 200000:
+            patch_size = 64
+            print(f"patch size selected {patch_size}, openslide level {level}")
+        elif 199999 < tissue_size_pixels < 500000:
+            patch_size = 128
+            print(f"patch size selected {patch_size}, openslide level {level}")
+        elif tissue_size_pixels > 499999:
+            patch_size = 256
+            print(f"patch size selected {patch_size}, openslide level {level}")
+         
     
 
         cmap= matplotlib.cm.tab10
@@ -235,11 +263,19 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
         #add results to dictionary
         results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, slide]
         
+        #write binary mask
+        with TiffWriter(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.tif', bigtiff=True) as tif:
+        
+            tif.save(np.invert(mask_final), tile=(16,16) ) 
+        
         #write mask to output
         with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
         
             tif.save(final_output, compress=6, tile=(16,16) ) 
-
+        end = time.time()
+        total = asMinutes(end - start)
+        print(f"Slide processed in {total}")
+        
     ###### Format output dictionary and save to csv file
     results_df = pd.DataFrame.from_dict(results_dict, orient='index')
     results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "file_path"]

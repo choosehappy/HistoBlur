@@ -54,7 +54,7 @@ def get_args():
     
     Detect_parser.add_argument('-f', '--input_wsi', help="directory to WSI image file(s)", required=True, default="", type=str)
 
-    Detect_parser.add_argument('-p', '--patchsize', help="patchsize, default 256", default=256, type=int)
+    Detect_parser.add_argument('-p', '--patchsize', help="patchsize", type=int)
 
     Detect_parser.add_argument('-s', '--batchsize', help="batchsize for controlling GPU memory usage ,default 16", default=16, type=int)
 
@@ -106,7 +106,7 @@ def main() -> None:
 
     #create outdir if it does not exist
 
-    Path(args.outdir).mkdir(parents=True, exist_ok=True)
+    Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
 
     ############## TRAINING 
         
