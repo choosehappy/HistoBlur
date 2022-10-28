@@ -9,9 +9,8 @@ import matplotlib.pyplot as plt
 from tqdm.autonotebook import tqdm
 from  skimage.color import rgb2gray
 import cv2
+from tifffile import TiffWriter
 
-from skimage.morphology import disk
-from skimage.filters import rank
 import os
 import glob
 import openslide
@@ -175,16 +174,16 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
             img = osh.read_region((0, 0), mask_level, osh.level_dimensions[mask_level])
             img = np.asarray(img)[:, :, 0:3]
-                
-            disk_size = 5
-            threshold = 200
-            img = rgb2gray(img)
-            img = (img * 255).astype(np.uint8)
-            selem = disk(disk_size)
-            imgfilt = rank.minimum(img, selem)
-            mask= imgfilt < threshold   
+            imgg=rgb2gray(img)
+            mask=np.bitwise_and(imgg>0 ,imgg <230/255)
+            kernel = np.ones((5,5), np.uint8)
+            mask = np.float32(mask)
+            mask =  cv2.erode(mask, kernel, iterations=4)
 
-
+        tissue_size_pixels = sum(sum(mask))
+        print(tissue_size_pixels)
+        if int(tissue_size_pixels) == 0:
+            sys.exit("No tissue remaining after mask generation, please select a slide with sufficient tissue")
 
         [rs,cs]=mask.nonzero() # mask coords in which tissue is present
 
@@ -277,7 +276,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
     optim = torch.optim.Adam(model.parameters()) #adam is going to be the most robust, though perhaps not the best performing, typically a good place to start
     criterion = nn.CrossEntropyLoss()
     
-    writer=SummaryWriter() #open the tensorboard visualiser
+    writer=SummaryWriter(log_dir=f"{output_dir}/logs") #open the tensorboard visualiser
     best_loss_on_test = np.Infinity
     
     ####### Training the model
@@ -364,6 +363,8 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
             torch.save(state, f"{output_dir}/{dataname}_densenet_best_model.pth")
         else:
             print("")
+
+    
 
 
     return f"{output_dir}/{dataname}_densenet_best_model.pth"

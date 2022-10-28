@@ -106,11 +106,12 @@ def main() -> None:
 
     #create outdir if it does not exist
 
-    Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
+    Path(f"{args.outdir}/").mkdir(parents=True, exist_ok=True)
 
     ############## TRAINING 
         
     if args.mode == "train" and args.input_wsi == "" and args.training != "" and args.validation != "":
+
         print("Skipping dataset creation, using provided pytables files for training")
         dataset_train_val = [["train", args.training], ["val", args.validation]]
         model_path = train_model(path_to_pytables_list=dataset_train_val, dataname=args.dataset_name, gpuid=args.gpuid, batch_size=args.batchsize, 
@@ -129,6 +130,7 @@ def main() -> None:
     ############## GENERATE OUTPUT
 
     if args.mode == "detect":
+        Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
         results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask,
         batch_size=args.batchsize, patch_size=args.patchsize)
         results_df.to_csv(f"{args.outdir}/results_overview.csv", sep=",")

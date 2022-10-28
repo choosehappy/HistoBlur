@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from skimage.morphology import disk
 from skimage.filters import rank
+import warnings
 
 import time
 import math
@@ -130,14 +131,19 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
                 tissue_size_pixels = sum(sum(mask))
                 print(f"{tissue_size_pixels} at 8 μm per pixel")
            
-        
+        #adjusting patch size and magnification based on tissue quantity
+
         if tissue_size_pixels == 0:
             print("No tissue detected, skipping file")
             continue
         if 0 < tissue_size_pixels < 100000:
-            level = 0
-            patch_size = 128
-            print(f"Low tissue quantity detected, using higher magnification, patch size selected {patch_size}, openslide level {level}")
+            if level == 0:
+                patch_size = 64
+                print(f"Low tissue quantity detected, unable to use higher magnification cause already at max, patch size selected {patch_size}, openslide level {level}")
+            else:
+                level = level - 1
+                patch_size = 128
+                print(f"Low tissue quantity detected, using higher magnification, patch size selected {patch_size}, openslide level {level}")
         elif 99999 < tissue_size_pixels < 200000:
             patch_size = 64
             print(f"patch size selected {patch_size}, openslide level {level}")
@@ -261,7 +267,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
                                                                             
         
         #add results to dictionary
-        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, slide]
+        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, patch_size, level, tissue_size_pixels, slide]
         
         #write binary mask
         with TiffWriter(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.tif', bigtiff=True) as tif:
@@ -278,6 +284,6 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
         
     ###### Format output dictionary and save to csv file
     results_df = pd.DataFrame.from_dict(results_dict, orient='index')
-    results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "file_path"]
+    results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "patch_size_used", "openslide_magnification_level", "npixels_at_8μpp", "file_path"]
 
     return results_df
