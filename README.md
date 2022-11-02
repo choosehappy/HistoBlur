@@ -1,7 +1,7 @@
 ## HistoBlur
 
 ## Warning:
-This tool is still under development and has only been tested on Linux Ubuntu
+This tool is still under development and has only been tested on Linux Ubuntu. A docker container and full documentation will be made available shortly.
 
 
 # Introduction
@@ -28,6 +28,14 @@ The detection mode will output a tissue mask with non blurry regions appearing i
 The tool will also output a csv formatted file with the percentage of mildly and highly blurry regions on the slide.
 
 # Installation
+Before installing HistoBlur, the following dependencies need to be installed:
+
+HDF5 (available here https://www.hdfgroup.org/downloads/hdf5/)
+
+Openslide (available here https://openslide.org/download/)
+
+
+Ones these dependencies have been setup, Histoblur can be installed.
 
 To install HistoBlur, first clone the directory:
 
@@ -36,7 +44,7 @@ git clone https://github.com/choosehappy/HistoBlur.git
 cd HistoBlur
 ```
 
-If you wish to install the tool in a separate conda environment:
+If you wish to install the tool in a separate conda environment (recommended):
 
 ```
 conda create --name HistoBlur python=3.8
@@ -84,12 +92,8 @@ This command will analyze all the WSIs matching the provided glob pattern and ou
 in a csv file in the designated output folder. A mask of the blurry regions for each slide will also be outputted.
 
 
-# TO DO LIST
+# WARNING
 
-Add better input checks to avoid abigious errors.  
-Add a function to change path format based on Operating System to allow for Windows compatibility  
-Filter package warnings from appearing in user StdOut  
-Add logging  
-Add another function that performs blur percentage calculation without generating mask to speed things up  
+The code is still under development, breaking changes may be introduced
 
 
