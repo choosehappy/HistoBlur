@@ -92,8 +92,5 @@ This command will analyze all the WSIs matching the provided glob pattern and ou
 in a csv file in the designated output folder. A mask of the blurry regions for each slide will also be outputted.
 
 
-# WARNING
-
-The code is still under development, breaking changes may be introduced
 
 
