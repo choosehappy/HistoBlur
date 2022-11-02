@@ -36,13 +36,13 @@ def get_args():
     
     Train_Parser.add_argument('-l', '--level', help="openslide level to use, default 1", default=1, type=int)
     
-    Train_Parser.add_argument('-m', '--enablemask', help="calculate tissue mask", action="store_true")
+    Train_Parser.add_argument('-m', '--enablemask', help="provide external mask (assumes .png extension file with same slide name)", action="store_true")
     
     Train_Parser.add_argument('-t', '--trainsize', help="size of training set, default 10000", default=10000, type=int)
     
     Train_Parser.add_argument('-v', '--valsize', help="size of validation set, default 2000", default=2000, type=int)
     
-    Train_Parser.add_argument('-e', '--epochs', help="size of training set, default 80", default=80, type=int)
+    Train_Parser.add_argument('-e', '--epochs', help="number of epochs to train for, default 100", default=100, type=int)
 
     Train_Parser.add_argument('-y', '--training', help="pre-generated pytables file with training set", default="", type=str)
 

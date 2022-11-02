@@ -126,8 +126,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
                 img = (img * 255).astype(np.uint8)
                 selem = disk(disk_size)
                 imgfilt = rank.minimum(img, selem)
-                mask= imgfilt < threshold
-                mask_final = imgfilt < threshold
+                mask= np.float32(imgfilt < threshold)
+                mask_final = np.float32(imgfilt < threshold)
                 tissue_size_pixels = sum(sum(mask))
                 print(f"{tissue_size_pixels} at 8 μm per pixel")
            
@@ -272,7 +272,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
         #write binary mask
         with TiffWriter(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.tif', bigtiff=True) as tif:
         
-            tif.save(np.invert(mask_final), tile=(16,16) ) 
+            tif.save(np.int8(mask_final*254), compress=6, tile=(16,16) ) 
         
         #write mask to output
         with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
