@@ -17,3 +17,7 @@ torchvision==0.13.1
 tqdm==4.62.3
 ttach==0.0.3
 WSI_handling==0.16.2
+flake8==4.0.1
+filelock==3.8.0
+platformdirs==2.5.2
+pytest>=6.2.5
