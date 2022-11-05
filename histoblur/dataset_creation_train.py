@@ -124,6 +124,20 @@ def timeSince(since, percent):
     rs = es - s
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
+######### Mask generation function
+
+def generate_mask_stringent(image):
+    """Function that generates mask with erosion, this removes very small regions of spur pixels"""
+    imgg=rgb2gray(image)
+    mask=np.bitwise_and(imgg>0 ,imgg <230/255)
+    kernel = np.ones((5,5), np.uint8)
+    mask = np.float32(mask)
+    mask =  cv2.erode(mask, kernel, iterations=4)
+
+    return mask
+
+
+
 ######### PYTABLES creation function
 
 def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sample_level, output_dir, mask_bool=True):
@@ -174,16 +188,13 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
             img = osh.read_region((0, 0), mask_level, osh.level_dimensions[mask_level])
             img = np.asarray(img)[:, :, 0:3]
-            imgg=rgb2gray(img)
-            mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-            kernel = np.ones((5,5), np.uint8)
-            mask = np.float32(mask)
-            mask =  cv2.erode(mask, kernel, iterations=4)
+            mask = generate_mask_stringent(img) #call mask generation function
 
         tissue_size_pixels = sum(sum(mask))
         print(tissue_size_pixels)
         if int(tissue_size_pixels) == 0:
             sys.exit("No tissue remaining after mask generation, please select a slide with sufficient tissue")
+
 
         [rs,cs]=mask.nonzero() # mask coords in which tissue is present
 
@@ -211,6 +222,12 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
         osh.close()
     tables.file._open_files.close_all()
+
+    with TiffWriter(f'{output_dir}/tissue_masks/output_tissue_mask_training.tif', bigtiff=True) as tif:
+        
+            tif.save(np.int8(mask*254), compress=6, tile=(16,16) )
+
+
     return [["train", f"{output_dir}/{dataname}_train.pytable"],["val", f"{output_dir}/{dataname}_val.pytable"]]
     
 
@@ -363,6 +380,8 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
             torch.save(state, f"{output_dir}/{dataname}_densenet_best_model.pth")
         else:
             print("")
+
+
 
     
 

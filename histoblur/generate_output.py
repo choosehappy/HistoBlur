@@ -48,6 +48,18 @@ class Args_Detect(NamedTuple):
     gpuid: int
     enablemask: bool
 
+def generate_mask_loose(image):
+    """generates a mask with thresholding, does not apply erosion"""
+
+    disk_size = 5
+    threshold = 200
+    img = rgb2gray(image)
+    img = (img * 255).astype(np.uint8)
+    selem = disk(disk_size)
+    imgfilt = rank.minimum(img, selem)
+    mask= np.float32(imgfilt < threshold)
+
+    return mask
     
 def asMinutes(s):
     m = math.floor(s / 60)
@@ -119,16 +131,9 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
                 
                 print("Generating mask and estimating tissue size")
                 img = np.asarray(img)[:, :, 0:3]
-                
-                disk_size = 5
-                threshold = 200
-                img = rgb2gray(img)
-                img = (img * 255).astype(np.uint8)
-                selem = disk(disk_size)
-                imgfilt = rank.minimum(img, selem)
-                mask= np.float32(imgfilt < threshold)
-                mask_final = np.float32(imgfilt < threshold)
-                tissue_size_pixels = sum(sum(mask))
+                mask_final = generate_mask_loose(img)
+                mask = mask_final
+                tissue_size_pixels = int(sum(sum(mask)))
                 print(f"{tissue_size_pixels} at 8 μm per pixel")
            
         #adjusting patch size and magnification based on tissue quantity

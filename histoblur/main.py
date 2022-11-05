@@ -118,6 +118,7 @@ def main() -> None:
         patch_size=args.patchsize,phases=phases, num_epochs=args.epochs, output_dir=args.outdir, validation_phases=validation_phases)
         print(f"Training complete, model can be found at '{model_path}' and can be used to detect blurry regions")
     elif args.mode == "train" and args.input_wsi != "":
+        Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
         print("WSI was provided, creating dataset for training and validation")
         dataset_train_val = create_pytables(files=files, phases=phases, dataname=args.dataset_name,patch_size=args.patchsize, trainsize=args.trainsize,
         valsize=args.valsize, sample_level=args.level, output_dir=args.outdir, mask_bool=args.enablemask)
