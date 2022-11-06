@@ -6,6 +6,8 @@ from pathlib import Path
 import argparse
 import time
 import datetime
+import warnings
+
 
 
     
@@ -107,7 +109,7 @@ def main() -> None:
     #create outdir if it does not exist
 
     Path(f"{args.outdir}/").mkdir(parents=True, exist_ok=True)
-
+    
     ############## TRAINING 
         
     if args.mode == "train" and args.input_wsi == "" and args.training != "" and args.validation != "":

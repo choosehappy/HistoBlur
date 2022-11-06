@@ -71,6 +71,10 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
 
 
     print("Launching blur detection analysis")
+    ########## Muting non conformant TIFF warning
+
+    warnings.filterwarnings(action='ignore', module='tifffile')
+
     ########## Loading Densenet model
 
     device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
@@ -276,7 +280,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_
         
         #write binary mask
         with TiffWriter(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.tif', bigtiff=True) as tif:
-        
+
             tif.save(np.int8(mask_final*254), compress=6, tile=(16,16) ) 
         
         #write mask to output
