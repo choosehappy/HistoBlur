@@ -1,4 +1,5 @@
-## HistoBlur
+![HistoBlur-1_cropped](https://user-images.githubusercontent.com/70012389/200192533-385c7a6b-7f73-4c5f-b99b-7c2d31c68516.png)
+
 
 ## Warning:
 This tool is still under development and has only been tested on Linux Ubuntu. A docker container and full documentation will be made available shortly.
