@@ -1,4 +1,4 @@
-![HistoBlur-1_cropped](https://user-images.githubusercontent.com/70012389/200192533-385c7a6b-7f73-4c5f-b99b-7c2d31c68516.png)
+## HistoBlur
 
 
 ## Warning:
