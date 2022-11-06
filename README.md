@@ -9,7 +9,61 @@ This tool is still under development and has only been tested on Linux Ubuntu. A
 
 HistoBlur is a deep learning based tool that allows for the fast and accurate detection of blurry regions in Whole Slide Images.
 
-HistoBlur has two modes, a training and a detection mode. 
+HistoBlur has two modes.
+
+Training mode:
+
+```
+usage: HistoBlur train [-h] [-f INPUT_WSI] [-p PATCHSIZE] [-s BATCHSIZE] [-o OUTDIR] [-d DATASET_NAME] [-i GPUID] [-l LEVEL] [-m] [-t TRAINSIZE] [-v VALSIZE] [-e EPOCHS] [-y TRAINING] [-z VALIDATION]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f INPUT_WSI, --input_wsi INPUT_WSI
+                        WSI to use for training. ex: path/to/wsi.svs
+  -p PATCHSIZE, --patchsize PATCHSIZE
+                        patchsize to use for training, default 256
+  -s BATCHSIZE, --batchsize BATCHSIZE
+                        batchsize for controlling GPU memory usage, default 128
+  -o OUTDIR, --outdir OUTDIR
+                        output directory, default 'histoblur_output'
+  -d DATASET_NAME, --dataset_name DATASET_NAME
+                        name of dataset, default 'blur_detection'
+  -i GPUID, --gpuid GPUID
+                        id of gpu to use, default 0
+  -l LEVEL, --level LEVEL
+                        openslide level to use, default 1
+  -m, --enablemask      provide external mask (assumes .png extension file with same slide name)
+  -t TRAINSIZE, --trainsize TRAINSIZE
+                        size of training set, default 10000
+  -v VALSIZE, --valsize VALSIZE
+                        size of validation set, default 2000
+  -e EPOCHS, --epochs EPOCHS
+                        number of epochs to train for, default 100
+  -y TRAINING, --training TRAINING
+                        pre-generated pytables file with training set
+  -z VALIDATION, --validation VALIDATION
+                        pre-generated pytables file with training set
+```
+
+Detect mode:
+
+```
+usage: HistoBlur detect [-h] -f INPUT_WSI [-s BATCHSIZE] [-o OUTDIR] -m MODEL [-i GPUID] [-t]
+
+optional arguments:
+  -h, --help            show this help message and exit
+  -f INPUT_WSI, --input_wsi INPUT_WSI
+                        directory to WSI image file(s)
+  -s BATCHSIZE, --batchsize BATCHSIZE
+                        batchsize for controlling GPU memory usage ,default 16
+  -o OUTDIR, --outdir OUTDIR
+                        output directory, default 'histoblur_output'
+  -m MODEL, --model MODEL
+                        model
+  -i GPUID, --gpuid GPUID
+                        id of gpu to use, default 0
+  -t, --enablemask      provide external mask (assumes .png extension file with same slide name)
+```
 
 
 # Training

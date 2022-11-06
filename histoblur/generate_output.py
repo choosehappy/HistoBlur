@@ -41,7 +41,6 @@ class Args_Detect(NamedTuple):
     """ Command-line arguments """
     mode: str
     input_wsi: str
-    patchsize: int
     batchsize: int
     outdir: str
     model: str
@@ -66,7 +65,7 @@ def asMinutes(s):
     s -= m * 60
     return '%dm %ds' % (m, s)
 
-def generate_output(images, gpuid, model, outdir, enablemask, batch_size, patch_size):
+def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
     """"Function that generates output """
 
 
