@@ -36,7 +36,7 @@ Openslide (available here https://openslide.org/download/)
 
 Additionally, a CUDA installation is also required.
 
-Ones these dependencies have been setup, Histoblur can be installed.
+Once these dependencies have been setup, Histoblur can be installed.
 
 To install HistoBlur, first clone the directory:
 
