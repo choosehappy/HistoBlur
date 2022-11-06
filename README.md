@@ -70,16 +70,20 @@ optional arguments:
 
 In order to detect blurry regions, a DenseNet model needs to be trained for the specific stain being analyzed.
 For that, the user needs to provide one clear non-blurry Whole Slide Image (WSI) for the staining of choice.
+
 In training mode, patches from the clear non-blurry WSI will be extracted and gaussian blur will be applied to some of them. A dataset will be created
 in which a patch can either be clear, mildly blurry or highly blurry. The associated patches and labels with the artificially applied levels of blurriness
 are used as a training set for the model.
+
 The model then trains for the indicated number of epochs and the saved model weights for the best performing model are outputed in the output directory.
 The trained model can then be used to detect blurry areas in other WSI of the same staining type.
 
 # Detection
 
 Once the model has been trained, the user can then provide other file(s) along with the previous trained model in order to estimate bluriness.
+
 The detection mode will output a tissue mask with non blurry regions appearing in green, mildly blurry regions in blue and highly blurry regions in red.
+
 The tool will also output a csv formatted file with the percentage of mildly and highly blurry regions on the slide.
 
 # Installation
@@ -156,7 +160,7 @@ in a csv file in the designated output folder. A mask of the blurry regions for 
 
 # Output
 
-HistoBlur train will output the following files in the output directory:
+*HistoBlur train will output the following files in the output directory:*
 
 Two pytables file (train and val): _these contain the training and validation set used for the DenseNet model training, they can be reused with the flags -y and -z to retrain the model_
 
@@ -167,7 +171,7 @@ A logs directory containing the training summary: _the tensorboard summary graph
 A binary tissue mask in a subdirectory named "tissue_masks": _binary tissue mask to ensure that the area used for training is reasonable_
 
 
-HistoBlur detect will output the following files in the output directory:
+*HistoBlur detect will output the following files in the output directory:*
 
 A binary tissue mask in a subdirectory named "tissue_masks": _these can be used as binary masks for downstream analysis or as a sanity check to ensure that the tissue areas analyzed are reasonable._
 
