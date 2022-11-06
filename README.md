@@ -64,7 +64,7 @@ optional arguments:
                         id of gpu to use, default 0
   -t, --enablemask      provide external mask (assumes .png extension file with same slide name)
 ```
-
+![HistoBlur_animation](https://user-images.githubusercontent.com/70012389/200196599-b6740098-db1a-43e5-8760-03e238ff9ebe.gif)
 
 # Training
 
