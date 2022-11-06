@@ -81,8 +81,8 @@ The following command will create a training and testing set from the provided W
 The two datasets will be used to train a Densenet for 100 epochs, the model will also be outputed in the designated output folder.
 
 After training has been completed, the training statistics can be visualized using tensordboard:
-Inside the output directory, run the following
 
+Inside the output directory, run the following
 ```
 tensorboard --logdir logs/
 ```
