@@ -56,8 +56,10 @@ def generate_mask_loose(image):
     img = (img * 255).astype(np.uint8)
     selem = disk(disk_size)
     imgfilt = rank.minimum(img, selem)
-    mask= np.float32(imgfilt < threshold)
-
+    up_tresh = imgfilt < threshold
+    down_thresh =  imgfilt > 0
+    mask= np.float32(np.logical_and(up_tresh, down_thresh))
+    
     return mask
     
 def asMinutes(s):
