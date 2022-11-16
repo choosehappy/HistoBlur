@@ -1,10 +1,8 @@
-
 import tables
 import numpy as np
+import logging
 
-import sklearn.feature_extraction.image
 from sklearn.metrics import confusion_matrix
-from sklearn import model_selection
 import matplotlib.pyplot as plt
 from tqdm.autonotebook import tqdm
 from  skimage.color import rgb2gray
@@ -12,7 +10,6 @@ import cv2
 from tifffile import TiffWriter
 
 import os
-import glob
 import openslide
 import random
 import os,sys
@@ -38,6 +35,15 @@ import time
 import math
 
 # coding: utf-8
+
+### logger
+
+logger = logging.getLogger(__name__)
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+formatter = logging.Formatter("%(message)s")
+console.setFormatter(formatter)
+logger.addHandler(console)
 
 class Args_train(NamedTuple):
     """ Command-line arguments """
@@ -147,9 +153,7 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
     #tables.file._open_files.close_all()
     seed = random.randrange(sys.maxsize) #get a random seed so that we can reproducibly do the cross validation setup
     random.seed(seed) # set the seed
-    print(f"random seed (note down for reproducibility): {seed}")
-
-
+    logger.info(f"random seed (note down for reproducibility): {seed}")
 
 
     # parameters for pytables creation
@@ -175,26 +179,45 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
 
     for filei in tqdm(files): #now for each of the files
-        osh  = openslide.OpenSlide(filei)
+        try:
+            osh  = openslide.OpenSlide(filei)
+        except ValueError:
+            logger.exception(f"ERROR: {filei} not Openslide compatible")
+            sys.exit(1)
+
+        samplebase = os.path.basename(filei)
+        sample = os.path.splitext(samplebase)[0]
+
         osh_mask  = wsi(filei)
         mask_level_tuple = osh_mask.get_layer_for_mpp(8)
         mask_level = mask_level_tuple[0]
-
+        
 
         if(mask_bool):
-            mask=cv2.imread(os.path.splitext(filei)[0]+'.png') #--- assume mask has png ending in same directory
-
+            img = osh_mask.read_region((0, 0), mask_level, osh_mask["img_dims"][mask_level])
+            mask_img=cv2.imread(os.path.splitext(filei)[0]+'.png', cv2.IMREAD_GRAYSCALE) #--- assume mask has png ending in same directory
+            width = int(img.shape[1] )
+            height = int(img.shape[0])
+            dim = (width, height)
+            mask_resize = cv2.resize(mask_img,dim)
+            mask = np.float32(mask_resize)
+            mask /= 255 #--- assume mask has png ending in same directory
+            
         else:
 
             img = osh.read_region((0, 0), mask_level, osh.level_dimensions[mask_level])
             img = np.asarray(img)[:, :, 0:3]
             mask = generate_mask_stringent(img) #call mask generation function
+    
 
         tissue_size_pixels = sum(sum(mask))
-        print(tissue_size_pixels)
-        if int(tissue_size_pixels) == 0:
-            sys.exit("No tissue remaining after mask generation, please select a slide with sufficient tissue")
+        logger.info(f"{tissue_size_pixels} at 8μpp")
 
+        if int(tissue_size_pixels) == 0:
+            logger.critical("No tissue remaining after mask generation, please select a slide with sufficient tissue")
+            sys.exit(1)
+        elif int(tissue_size_pixels) < 500000:
+            logger.warning("Warning: low tissue quantitiy detected. We recommend using a slide with more tissue")
 
         [rs,cs]=mask.nonzero() # mask coords in which tissue is present
 
@@ -220,12 +243,12 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
                      storage[phase]["imgs"].append(io[None,::])
                      storage[phase]["filenames"].append([f'{filei}_{r}_{c}']) #add the filename to the storage array
 
+        bin_mask = mask*255
+        bin_mask = bin_mask.astype(np.uint8)
+        cv2.imwrite(f'{output_dir}/tissue_masks/output_tissue_mask_{sample}.png', bin_mask)
+
         osh.close()
     tables.file._open_files.close_all()
-
-    with TiffWriter(f'{output_dir}/tissue_masks/output_tissue_mask_training.tif', bigtiff=True) as tif:
-        
-            tif.save(np.int8(mask*254), compress=6, tile=(16,16) )
 
 
     return [["train", f"{output_dir}/{dataname}_train.pytable"],["val", f"{output_dir}/{dataname}_val.pytable"]]
@@ -251,6 +274,8 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
                   2:[5,7]}
     nclasses=len(blurparams)
     device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
+    if device == 'cpu':
+        logger.warning("Training on CPU, this will take a lot longer. Switching to GPU is recommended")
 
     model = DenseNet(growth_rate=growth_rate, block_config=block_config,
                      num_init_features=num_init_features, 
@@ -288,7 +313,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
         dataset[phase[0]]=Dataset(phase[1], blurparams, img_transform=img_transform)
         dataLoader[phase[0]]=DataLoader(dataset[phase[0]], batch_size=batch_size, 
                                     shuffle=True, num_workers=12,pin_memory=True) 
-        print(f"{phase} dataset size:\t{len(dataset[phase[0]])}")
+        logger.info(f"{phase} dataset size:\t{len(dataset[phase[0]])}")
 
     optim = torch.optim.Adam(model.parameters()) #adam is going to be the most robust, though perhaps not the best performing, typically a good place to start
     criterion = nn.CrossEntropyLoss()

@@ -1,11 +1,10 @@
 #Code by Rahul Nair and Petros Liakopoulos
 #Import packages
 import numpy as np
-import matplotlib.pyplot as plt
 from WSI_handling import wsi
+import logging
 
 import sklearn.feature_extraction.image
-import matplotlib.pyplot as plt
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
@@ -27,13 +26,21 @@ from tqdm.autonotebook import tqdm
 
 from  skimage.color import rgb2gray
 import os
-from os import path
+import sys
 
 import openslide
 from tifffile import TiffWriter
 
-import ttach as tta
 from typing import NamedTuple
+
+### logger
+
+logger = logging.getLogger(__name__)
+console = logging.StreamHandler()
+console.setLevel(logging.INFO)
+formatter = logging.Formatter("%(message)s")
+console.setFormatter(formatter)
+logger.addHandler(console)
 
 # ### Args class
 
@@ -41,7 +48,6 @@ class Args_Detect(NamedTuple):
     """ Command-line arguments """
     mode: str
     input_wsi: str
-    batchsize: int
     outdir: str
     model: str
     gpuid: int
@@ -61,17 +67,19 @@ def generate_mask_loose(image):
     mask= np.float32(np.logical_and(up_tresh, down_thresh))
     
     return mask
-    
+
+def divide_batch(l, n): 
+    for i in range(0, l.shape[0], n):  
+        yield l[i:i + n,::] 
+
 def asMinutes(s):
     m = math.floor(s / 60)
     s -= m * 60
     return '%dm %ds' % (m, s)
 
-def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
+def generate_output(images, gpuid, model, outdir, enablemask):
     """"Function that generates output """
 
-
-    print("Launching blur detection analysis")
     ########## Muting non conformant TIFF warning
 
     warnings.filterwarnings(action='ignore', module='tifffile')
@@ -80,6 +88,12 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
 
     device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
 
+    batch_size = 16  #we currently use patch_size * 4 for tile size, so each iteration only generates 16 patches at a time (room for optimization if necessary)
+
+    if device == 'cpu':
+        logger.warning("Generating output with CPU, this will take a lot longer. Switching to GPU is recommended")
+
+    logger.info(f"model used: {model}")
     checkpoint = torch.load(model, map_location=lambda storage, loc: storage) #load checkpoint to CPU and then put to device https://discuss.pytorch.org/t/saving-and-loading-torch-models-on-2-machines-with-different-number-of-gpu-devices/6666
 
     level_training = checkpoint["level"]
@@ -97,37 +111,41 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
     print(f"total model params: \t{sum([np.prod(p.size()) for p in model.parameters()])}")
 
 
-
     ##### create results dictionary
     results_dict = {}
     
-    
+    failed_slides = 0
     ##### Iterate through images and generate output
     for slide in images:
+
+        try:
+            osh  = openslide.OpenSlide(slide)
+        except openslide.lowlevel.OpenSlideUnsupportedFormatError:
+            failed_slides+=1
+            logger.error(f"ERROR: {slide} not Openslide compatible, skipping")
+            continue
+
+        logger.info(f"processing slide: {slide}")
         level = level_training
         start = time.time()
         samplebase = os.path.basename(slide)
         sample = os.path.splitext(samplebase)[0]
-        print(f"processing file: {slide}")
         fname=slide
         osh_mask  = wsi(fname)
         mask_level_tuple = osh_mask.get_layer_for_mpp(8)
         mask_level = mask_level_tuple[0]
         img = osh_mask.read_region((0, 0), mask_level, osh_mask["img_dims"][mask_level])
-
-
-        def divide_batch(l, n): 
-            for i in range(0, l.shape[0], n):  
-                yield l[i:i + n,::] 
                     
         
         if(enablemask):
-            mask=cv2.imread(os.path.splitext(slide)[0]+'.png') #--- assume mask has png ending in same directory 
+            mask_img=cv2.imread(os.path.splitext(slide)[0]+'.png', cv2.IMREAD_GRAYSCALE) #--- assume mask has png ending in same directory
             width = int(img.shape[1] )
             height = int(img.shape[0])
             dim = (width, height)
-            mask = cv2.resize(mask,dim)
-            mask = np.float32(mask)
+            mask_resize = cv2.resize(mask_img,dim)
+            mask = np.float32(mask_resize)
+            mask /= 255
+    
             
         
         
@@ -138,38 +156,45 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
                 img = np.asarray(img)[:, :, 0:3]
                 mask_final = generate_mask_loose(img)
                 mask = mask_final
-                tissue_size_pixels = int(sum(sum(mask)))
-                print(f"{tissue_size_pixels} at 8 μm per pixel")
+    
            
-        #adjusting patch size and magnification based on tissue quantity
+        #estimating tissue 
+        tissue_size_pixels = int(sum(sum(mask)))
+        print(f"{tissue_size_pixels} at 8 μm per pixel")
 
+        #adjusting patch size and magnification based on tissue quantity
         if tissue_size_pixels == 0:
-            print("No tissue detected, skipping file")
+            logger.error(f"No tissue detected on slide {slide}")
             continue
         if 0 < tissue_size_pixels < 100000:
             if level == 0:
                 patch_size = 64
-                print(f"Low tissue quantity detected, unable to use higher magnification cause already at max, patch size selected {patch_size}, openslide level {level}")
+                logger.info(f"Low tissue quantity detected, unable to use higher magnification cause already at max, patch size selected {patch_size}, openslide level {level}")
             else:
                 level = level - 1
                 patch_size = 128
-                print(f"Low tissue quantity detected, using higher magnification, patch size selected {patch_size}, openslide level {level}")
+                logger.info(f"Low tissue quantity detected, using higher magnification, patch size selected {patch_size}, openslide level {level}")
         elif 99999 < tissue_size_pixels < 200000:
             patch_size = 64
-            print(f"patch size selected {patch_size}, openslide level {level}")
+            logger.info(f"patch size selected {patch_size}, openslide level {level}")
         elif 199999 < tissue_size_pixels < 500000:
             patch_size = 128
-            print(f"patch size selected {patch_size}, openslide level {level}")
+            logger.info(f"patch size selected {patch_size}, openslide level {level}")
         elif tissue_size_pixels > 499999:
             patch_size = 256
-            print(f"patch size selected {patch_size}, openslide level {level}")
+            logger.info(f"patch size selected {patch_size}, openslide level {level}")
          
     
 
         cmap= matplotlib.cm.tab10
 
         #ensure that this level is the same as the level used in training
-        osh  = openslide.OpenSlide(fname)
+        try:
+            osh  = openslide.OpenSlide(slide)
+        except openslide.lowlevel.OpenSlideUnsupportedFormatError:
+            logger.exception(f"ERROR: {slide} not Openslide compatible")
+            continue
+
         osh.level_dimensions
         ds=int(osh.level_downsamples[level])
 
@@ -279,10 +304,12 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
         #add results to dictionary
         results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, patch_size, level, tissue_size_pixels, slide]
         
-        #write binary mask
-        with TiffWriter(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.tif', bigtiff=True) as tif:
+        if not (enablemask):        
+            bin_mask = mask_final*255
+            bin_mask = bin_mask.astype(np.uint8)
+            #Write binary mask to png if one not provided
 
-            tif.save(np.int8(mask_final*254), compress=6, tile=(16,16) ) 
+            cv2.imwrite(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.png', bin_mask)
         
         #write mask to output
         with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
@@ -290,10 +317,17 @@ def generate_output(images, gpuid, model, outdir, enablemask, batch_size):
             tif.save(final_output, compress=6, tile=(16,16) ) 
         end = time.time()
         total = asMinutes(end - start)
-        print(f"Slide processed in {total}")
-        
-    ###### Format output dictionary and save to csv file
-    results_df = pd.DataFrame.from_dict(results_dict, orient='index')
-    results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "patch_size_used", "openslide_magnification_level", "npixels_at_8μpp", "file_path"]
+        logger.info((f"Slide processed in {total}"))
+    
+
+    try:
+        ###### Format output dictionary and save to csv file
+        results_df = pd.DataFrame.from_dict(results_dict, orient='index')
+        results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "patch_size_used", "openslide_magnification_level", "npixels_at_8μpp", "file_path"]
+        if failed_slides > 0:
+            logger.warning(f"WARNING: {failed_slides} slides were skipped due to lack of openslide compatibility")
+    except ValueError:
+        logger.error(f"ERROR: No slide in glob pattern is openslide compatible")
+        sys.exit(1)
 
     return results_df
