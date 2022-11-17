@@ -94,7 +94,7 @@ The tool will also output a csv formatted file with the percentage of mildly and
 
 # Installation
 
-#1. Manual installation:
+**1. Manual installation:**
 Before installing HistoBlur, the following dependencies need to be installed:
 
 HDF5 (available here https://www.hdfgroup.org/downloads/hdf5/)
@@ -132,7 +132,7 @@ To ensure that HistoBlur has been succesfully installed, run the following:
 HistoBlur --help
 ```
 
-#2. Docker container:
+**2. Docker container:**
 
 Alternatively, the latest docker can be pulled using (note that this also required local installation of Nvidia CUDA drivers):
 
