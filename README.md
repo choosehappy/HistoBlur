@@ -95,6 +95,7 @@ The tool will also output a csv formatted file with the percentage of mildly and
 # Installation
 
 **1. Manual installation:**
+
 Before installing HistoBlur, the following dependencies need to be installed:
 
 HDF5 (available here https://www.hdfgroup.org/downloads/hdf5/)
