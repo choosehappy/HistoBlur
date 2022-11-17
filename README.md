@@ -135,7 +135,9 @@ HistoBlur --help
 
 **2. Docker container:**
 
-Alternatively, the latest docker can be pulled using (note that this also required local installation of Nvidia CUDA drivers):
+Alternatively, the latest docker can be pulled using the following command:
+
+(note that this also requires local installation of Nvidia CUDA drivers on your machine)
 
 ```
 docker pull petroslk/histoblur:latest
