@@ -274,8 +274,9 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
                   2:[5,7]}
     nclasses=len(blurparams)
     device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
-    if device == 'cpu':
-        logger.warning("Training on CPU, this will take a lot longer. Switching to GPU is recommended")
+    
+    if str(device) == 'cpu':
+        logger.warning("Generating output with CPU, this might take longer. Switching to GPU is recommended")
 
     model = DenseNet(growth_rate=growth_rate, block_config=block_config,
                      num_init_features=num_init_features, 

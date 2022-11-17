@@ -90,8 +90,8 @@ def generate_output(images, gpuid, model, outdir, enablemask):
 
     batch_size = 16  #we currently use patch_size * 4 for tile size, so each iteration only generates 16 patches at a time (room for optimization if necessary)
 
-    if device == 'cpu':
-        logger.warning("Generating output with CPU, this will take a lot longer. Switching to GPU is recommended")
+    if str(device) == 'cpu':
+        logger.warning("Generating output with CPU, this might take longer. Switching to GPU is recommended")
 
     logger.info(f"model used: {model}")
     checkpoint = torch.load(model, map_location=lambda storage, loc: storage) #load checkpoint to CPU and then put to device https://discuss.pytorch.org/t/saving-and-loading-torch-models-on-2-machines-with-different-number-of-gpu-devices/6666
