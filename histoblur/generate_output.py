@@ -183,8 +183,7 @@ def generate_output(images, gpuid, model, outdir, enablemask):
         elif tissue_size_pixels > 499999:
             patch_size = 256
             logger.info(f"patch size selected {patch_size}, openslide level {level}")
-         
-    
+
 
         cmap= matplotlib.cm.tab10
 
@@ -203,6 +202,20 @@ def generate_output(images, gpuid, model, outdir, enablemask):
         stride_size = patch_size #Use non overlapping patches
         tile_size=patch_size*4 #the bigger the tile size the smaller the resolution of the mask. x4 the patch size is a good tradeoff
         nclasses=3
+
+        #Variables for percentage of white pixels in each patch
+        seventy_perc_thresh = int(patch_size*patch_size * 0.7)
+        fifty_perc_thresh = int(patch_size*patch_size * 0.5)
+        thirty_perc_thresh = int(patch_size*patch_size * 0.3)
+        ten_perc_thresh = int(patch_size*patch_size * 0.1)
+
+
+        #counters for percentage of white area
+
+        count_seventy = 0
+        count_fifty = 0
+        count_thirty = 0
+        count_ten = 0
 
 
         shape=osh.level_dimensions[level]
@@ -232,6 +245,28 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                 arr_out_shape = arr_out.shape
                 arr_out = arr_out.reshape(-1,patch_size,patch_size,3)
                 
+                #checking white perc
+
+                g_arr_out = list(map(rgb2gray, arr_out))
+                for patch in g_arr_out:
+                    gray_mask = patch > 0.94 #threshold for white
+                    white_pixel_sum = np.sum(gray_mask) #total pixels above that threshold
+                    if white_pixel_sum > seventy_perc_thresh: #At least 70% of patch made up of white pixels
+                        count_seventy += 1
+                        count_fifty += 1
+                        count_thirty += 1
+                        count_ten += 1
+                    elif white_pixel_sum > fifty_perc_thresh: #At least 50%
+                        count_fifty += 1
+                        count_thirty += 1
+                        count_ten += 1
+                    elif white_pixel_sum > thirty_perc_thresh: #At least 30%
+                        count_thirty += 1
+                        count_ten += 1
+                    elif white_pixel_sum > ten_perc_thresh: #At least 10%
+                        count_ten += 1
+                    else:
+                        continue
                     
                 
                 for batch_arr in divide_batch(arr_out,batch_size):
@@ -291,8 +326,16 @@ def generate_output(images, gpuid, model, outdir, enablemask):
         data3[:,:,:3][mask] = [r2, g2, b2]
         final_output = data1+data2+data3
         
-        #Calculate perc of bluriness  
+        #total patches
         total_classified_patches = sum(sum(final_output[:,:,2] == 253)) + sum(sum(final_output[:,:,1] == 253)) + sum(sum(final_output[:,:,0] == 253)) #count number of patches with 253 in one channel
+
+        #Perc white pixels calculations
+        perc_seventy = round(count_seventy/total_classified_patches *100, 3)
+        perc_fifty = round(count_fifty/total_classified_patches *100, 3)
+        perc_thirty = round(count_thirty/total_classified_patches *100, 3)
+        perc_ten = round(count_ten/total_classified_patches *100, 3)
+
+        #Calculate perc of bluriness  
         total_patches_blurry = sum(sum(final_output[:,:,0] == 253)) + sum(sum(final_output[:,:,2] == 253))
         total_very_blurry = sum(sum(final_output[:,:,0] == 253))
         total_mildly_blurry = sum(sum(final_output[:,:,2] == 253))
@@ -302,7 +345,7 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                                                                             
         
         #add results to dictionary
-        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, patch_size, level, tissue_size_pixels, slide]
+        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, perc_seventy, perc_fifty, perc_thirty, perc_ten, patch_size, level, tissue_size_pixels, slide]
         
         if not (enablemask):        
             bin_mask = mask_final*255
@@ -323,7 +366,7 @@ def generate_output(images, gpuid, model, outdir, enablemask):
     try:
         ###### Format output dictionary and save to csv file
         results_df = pd.DataFrame.from_dict(results_dict, orient='index')
-        results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "patch_size_used", "openslide_magnification_level", "npixels_at_8μpp", "file_path"]
+        results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "70_perc_white", "50_perc_white", "30_perc_white", "10_perc_white", "patch_size_used", "openslide_magnification_level", "npixels_at_8μpp", "file_path"]
         if failed_slides > 0:
             logger.warning(f"WARNING: {failed_slides} slides were skipped due to lack of openslide compatibility")
     except ValueError:
