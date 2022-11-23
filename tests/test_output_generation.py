@@ -11,7 +11,7 @@ from histoblur.generate_output import generate_mask_loose
 from histoblur.dataset_creation_train import generate_mask_stringent
 
 PRG = 'HistoBlur'
-MODEL_PATH = 'pretrained_model/blur_detection_densenet_best_model.pth'
+MODEL_PATH = 'pretrained_model/blur_detection_densenet_best_model_20X.pth'
 ABS_PATH_MODEL = os.path.abspath(MODEL_PATH)
 MASK_PATH = 'tests/data/CMU-1-JP2K-33005.png'
 ABS_MASK_PATH = os.path.abspath(MASK_PATH)
