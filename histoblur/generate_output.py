@@ -27,6 +27,7 @@ from tqdm.autonotebook import tqdm
 from  skimage.color import rgb2gray
 import os
 import sys
+from .dataset_creation_train import getMag, asMinutes
 
 import openslide
 from tifffile import TiffWriter
@@ -52,6 +53,7 @@ class Args_Detect(NamedTuple):
     model: str
     gpuid: int
     enablemask: bool
+    white_ratio: float
 
 def generate_mask_loose(image):
     """generates a mask with thresholding, does not apply erosion"""
@@ -72,12 +74,10 @@ def divide_batch(l, n):
     for i in range(0, l.shape[0], n):  
         yield l[i:i + n,::] 
 
-def asMinutes(s):
-    m = math.floor(s / 60)
-    s -= m * 60
-    return '%dm %ds' % (m, s)
 
-def generate_output(images, gpuid, model, outdir, enablemask):
+
+
+def generate_output(images, gpuid, model, outdir, enablemask, perc_white):
     """"Function that generates output """
 
     ########## Muting non conformant TIFF warning
@@ -96,7 +96,7 @@ def generate_output(images, gpuid, model, outdir, enablemask):
     logger.info(f"model used: {model}")
     checkpoint = torch.load(model, map_location=lambda storage, loc: storage) #load checkpoint to CPU and then put to device https://discuss.pytorch.org/t/saving-and-loading-torch-models-on-2-machines-with-different-number-of-gpu-devices/6666
 
-    level_training = checkpoint["level"]
+    training_mag = checkpoint["magnification"]
 
     model = DenseNet(growth_rate=checkpoint["growth_rate"], block_config=checkpoint["block_config"],
                     num_init_features=checkpoint["num_init_features"], bn_size=checkpoint["bn_size"],
@@ -125,8 +125,23 @@ def generate_output(images, gpuid, model, outdir, enablemask):
             logger.error(f"ERROR: {slide} not Openslide compatible, skipping")
             continue
 
+    
+ 
+        ##### getting openslide level for requested magnification
+        native_mag = getMag(osh, slide)
+        targeted_mag = training_mag
+        down_factor = native_mag / targeted_mag
+        relative_down_factors_idx=[np.isclose(x/down_factor,1,atol=.01) for x in osh.level_downsamples]
+        level=np.where(relative_down_factors_idx)[0]
+
+        if level.size:
+            level=level[0]
+
+        else:
+            level = osh.get_best_level_for_downsample(down_factor)
+
+
         logger.info(f"processing slide: {slide}")
-        level = level_training
         start = time.time()
         samplebase = os.path.basename(slide)
         sample = os.path.splitext(samplebase)[0]
@@ -172,6 +187,7 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                 logger.info(f"Low tissue quantity detected, unable to use higher magnification cause already at max, patch size selected {patch_size}, openslide level {level}")
             else:
                 level = level - 1
+                targeted_mag = native_mag/osh.level_downsamples[level]
                 patch_size = 128
                 logger.info(f"Low tissue quantity detected, using higher magnification, patch size selected {patch_size}, openslide level {level}")
         elif 99999 < tissue_size_pixels < 200000:
@@ -186,13 +202,6 @@ def generate_output(images, gpuid, model, outdir, enablemask):
 
 
         cmap= matplotlib.cm.tab10
-
-        #ensure that this level is the same as the level used in training
-        try:
-            osh  = openslide.OpenSlide(slide)
-        except openslide.lowlevel.OpenSlideUnsupportedFormatError:
-            logger.exception(f"ERROR: {slide} not Openslide compatible")
-            continue
 
         osh.level_dimensions
         ds=int(osh.level_downsamples[level])
@@ -220,8 +229,11 @@ def generate_output(images, gpuid, model, outdir, enablemask):
 
         shape=osh.level_dimensions[level]
         shaperound=[((d//tile_size)+1)*tile_size for d in shape]
+        ds_mask = osh.level_downsamples[mask_level]
+        ds_level = osh.level_downsamples[level]
+        t_s_mask = int(tile_size*ds_level//ds_mask)
 
-        
+
         npmm=np.zeros((shaperound[1]//stride_size,shaperound[0]//stride_size,3),dtype=np.uint8)
         for y in tqdm(range(0,osh.level_dimensions[0][1],round(tile_size * osh.level_downsamples[level])), desc="outer"):
             for x in tqdm(range(0,osh.level_dimensions[0][0],round(tile_size * osh.level_downsamples[level])), desc=f"innter {y}", leave=False):
@@ -230,11 +242,11 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                 
                 
                 
-                maskx=int(x//osh.level_downsamples[mask_level])
-                masky=int(y//osh.level_downsamples[mask_level])
+                maskx=int(x//ds_mask)
+                masky=int(y//ds_mask)
                 
                 
-                if((np.any(maskx>= mask.shape[1])) or np.any(masky>= mask.shape[0]) or not np.any(mask[masky,maskx])): # need to handle rounding error.
+                if(maskx >= mask.shape[1] or masky >= mask.shape[0]) or mask[masky:masky+t_s_mask,maskx:maskx+t_s_mask].mean() < 0.1:
                     continue
                 
                 
@@ -244,13 +256,16 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                 arr_out=sklearn.feature_extraction.image._extract_patches(io,(patch_size,patch_size,3),stride_size)
                 arr_out_shape = arr_out.shape
                 arr_out = arr_out.reshape(-1,patch_size,patch_size,3)
-                
-                #checking white perc
 
+                #checking white perc
+                idx_to_remove = []
                 g_arr_out = list(map(rgb2gray, arr_out))
-                for patch in g_arr_out:
+                for i, patch in enumerate(g_arr_out):
                     gray_mask = patch > 0.94 #threshold for white
                     white_pixel_sum = np.sum(gray_mask) #total pixels above that threshold
+                    if white_pixel_sum > int(patch_size*patch_size * perc_white):#get index of patches above certain white percentage
+                        idx_to_remove.append(i)
+                        continue
                     if white_pixel_sum > seventy_perc_thresh: #At least 70% of patch made up of white pixels
                         count_seventy += 1
                         count_fifty += 1
@@ -267,7 +282,7 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                         count_ten += 1
                     else:
                         continue
-                    
+                
                 
                 for batch_arr in divide_batch(arr_out,batch_size):
                 
@@ -280,6 +295,8 @@ def generate_output(images, gpuid, model, outdir, enablemask):
                         output_batch = output_batch.detach().cpu().numpy()
 
                         output_batch_color=cmap(output_batch.argmax(axis=1), alpha=None)[:,0:3]
+                        output_batch_color[idx_to_remove] = [0,0,0] #take indexes of patches beyond the white threshold and turn them black
+
                     output = np.append(output,output_batch_color[:,:,None,None],axis=0)
                     
                 
@@ -343,9 +360,13 @@ def generate_output(images, gpuid, model, outdir, enablemask):
         perc_very_blurry = round(total_very_blurry/total_classified_patches*100, 3)
         perc_mildly_blurry = round(total_mildly_blurry/total_classified_patches*100, 3)
                                                                             
-        
+        end = time.time()
+        total = asMinutes(end - start)
+        logger.info((f"Slide processed in {total}"))
+
+
         #add results to dictionary
-        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, perc_seventy, perc_fifty, perc_thirty, perc_ten, patch_size, level, tissue_size_pixels, slide]
+        results_dict[samplebase] = [perc_tot, perc_mildly_blurry, perc_very_blurry, perc_seventy, perc_fifty, perc_thirty, perc_ten, patch_size, native_mag, targeted_mag, tissue_size_pixels, total, slide]
         
         if not (enablemask):        
             bin_mask = mask_final*255
@@ -358,15 +379,14 @@ def generate_output(images, gpuid, model, outdir, enablemask):
         with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
         
             tif.save(final_output, compress=6, tile=(16,16) ) 
-        end = time.time()
-        total = asMinutes(end - start)
-        logger.info((f"Slide processed in {total}"))
+        
     
 
     try:
         ###### Format output dictionary and save to csv file
         results_df = pd.DataFrame.from_dict(results_dict, orient='index')
-        results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "70_perc_white", "50_perc_white", "30_perc_white", "10_perc_white", "patch_size_used", "openslide_magnification_level", "npixels_at_8μpp", "file_path"]
+        results_df.columns = ["total_blurry_perc", "mildly_blurry_perc", "highly_blurry_perc", "70_perc_white", "50_perc_white", "30_perc_white", "10_perc_white", "patch_size_used", "native_magnification_level",
+        "blur_detection_magnification", "npixels_at_8μpp", "processing_time", "file_path"]
         if failed_slides > 0:
             logger.warning(f"WARNING: {failed_slides} slides were skipped due to lack of openslide compatibility")
     except ValueError:

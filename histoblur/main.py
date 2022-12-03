@@ -36,7 +36,7 @@ def get_args():
     
     Train_Parser.add_argument('-i', '--gpuid', help="id of gpu to use, default 0", default=0, type=int)
     
-    Train_Parser.add_argument('-l', '--level', help="openslide level to use, default 1", default=1, type=int)
+    Train_Parser.add_argument('-l', '--magnification_level', help="objective magnification level to use, default 20.0", default=20.0, type=float)
     
     Train_Parser.add_argument('-m', '--enablemask', help="provide external mask (assumes .png extension file with same slide name)", action="store_true")
     
@@ -64,6 +64,8 @@ def get_args():
 
     Detect_parser.add_argument('-t', '--enablemask', help="provide external mask (assumes .png extension file with same slide name)", action="store_true")
 
+    Detect_parser.add_argument('-w', '--white_ratio', help="the ratio of white area to allow in each patch", default=0.9, type=float)
+
 
 
     args = parser.parse_args()
@@ -73,12 +75,12 @@ def get_args():
         parser.error("No WSI provided and no validation/training set pytables provided.")
 
     if args.mode == "train":
-        return Args_train(args.mode, args.input_wsi, args.patchsize, args.batchsize, args.outdir, args.gpuid, args.level, args.dataset_name,
+        return Args_train(args.mode, args.input_wsi, args.patchsize, args.batchsize, args.outdir, args.gpuid, args.magnification_level, args.dataset_name,
         args.enablemask, args.trainsize, args.valsize, args.epochs, args.training, args.validation)
 
     elif args.mode == "detect":
         return Args_Detect(args.mode, args.input_wsi, args.outdir, args.model, args.gpuid,
-         args.enablemask)
+         args.enablemask, args.white_ratio)
     else:
         parser.error("Mode not provided - please select between train and detect")
 
@@ -143,11 +145,11 @@ def main() -> None:
         print("WSI was provided, creating dataset for training and validation")
         
         dataset_train_val = create_pytables(files=files, phases=phases, dataname=args.dataset_name,patch_size=args.patchsize, trainsize=args.trainsize,
-        valsize=args.valsize, sample_level=args.level, output_dir=args.outdir, mask_bool=args.enablemask)
+        valsize=args.valsize, magnification_level=args.magnification, output_dir=args.outdir, mask_bool=args.enablemask)
         print("Dataset preparation complete")
         print("Beginning model training")
         model_path = train_model(path_to_pytables_list=dataset_train_val, dataname=args.dataset_name, gpuid=args.gpuid, batch_size=args.batchsize,
-         patch_size=args.patchsize, phases=phases, num_epochs=args.epochs, output_dir=args.outdir, validation_phases=validation_phases,sample_level=args.level)
+         patch_size=args.patchsize, phases=phases, num_epochs=args.epochs, output_dir=args.outdir, validation_phases=validation_phases,magnification_level=args.magnification)
         logger.info(f"Training complete, model can be found at '{model_path}' and can be used to detect blurry regions")
 
     ############## GENERATE OUTPUT
@@ -155,7 +157,7 @@ def main() -> None:
     if args.mode == "detect":
         logger.info("Detect mode")
         Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
-        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask)
+        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, perc_white=args.white_ratio)
         results_df.to_csv(f"{args.outdir}/results_overview.csv", sep=",")
         print("Analysis complete")
 

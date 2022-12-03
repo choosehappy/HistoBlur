@@ -11,7 +11,7 @@ from histoblur.generate_output import generate_mask_loose
 from histoblur.dataset_creation_train import generate_mask_stringent
 
 PRG = 'HistoBlur'
-MODEL_PATH = 'pretrained_model/blur_detection_densenet_best_model_20X.pth'
+MODEL_PATH = 'pretrained_model/blur_detection_densenet_best_model_5.0X.pth'
 ABS_PATH_MODEL = os.path.abspath(MODEL_PATH)
 MASK_PATH = 'tests/data/CMU-1-JP2K-33005.png'
 ABS_MASK_PATH = os.path.abspath(MASK_PATH)
@@ -43,9 +43,9 @@ def test_mask_generation_loose(single_svs_dir):
 
 
 def test_training(single_svs_dir, tmp_path):
-    rv, out = getstatusoutput(f"{PRG} train -f '{os.fspath(single_svs_dir)}/*.svs' -t 10 -v 5 -e 1 -l 0 -s 32 -o {tmp_path}")
+    rv, out = getstatusoutput(f"{PRG} train -f '{os.fspath(single_svs_dir)}/*.svs' -t 10 -v 5 -e 1 -l 20.0 -s 32 -o {tmp_path}")
     assert rv == 0
-    assert _filenames_in(tmp_path) == _filenames_in(tmp_path).union(["blur_detection_val.pytable", "blur_detection_train.pytable", "blur_detection_densenet_best_model.pth",
+    assert _filenames_in(tmp_path) == _filenames_in(tmp_path).union(["blur_detection_val.pytable", "blur_detection_train.pytable", "blur_detection_densenet_best_model_20.0X.pth",
      "tissue_masks", "logs", "histoblur.log"])
     mask_img=cv2.imread(f"{tmp_path}/tissue_masks/output_tissue_mask_CMU-1-JP2K-33005.png", cv2.IMREAD_GRAYSCALE)
     mask = np.float32(mask_img)

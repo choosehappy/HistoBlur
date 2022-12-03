@@ -53,7 +53,7 @@ class Args_train(NamedTuple):
     batchsize: int
     outdir: str
     gpuid: int
-    level: int
+    magnification: float
     dataset_name: str
     enablemask: bool
     trainsize: int
@@ -142,11 +142,23 @@ def generate_mask_stringent(image):
 
     return mask
 
+######### Magnification extraction function
 
+
+def getMag(osh, slide):
+    mag = osh.properties.get("openslide.objective-power", "NA")
+    if (mag == "NA"):  # openslide doesn't set objective-power for all SVS files: https://github.com/openslide/openslide/issues/247
+        mag = osh.properties.get("aperio.AppMag", "NA")
+    if (mag == "NA"):
+        logger.error(f"{slide} - Unknown base magnification for file, please use a WSI with ")
+    else:
+        mag = float(mag)
+
+    return mag
 
 ######### PYTABLES creation function
 
-def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sample_level, output_dir, mask_bool=True):
+def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, magnification_level, output_dir, mask_bool=True):
     """ Create one pytables file for training set and one for validation"""
                     
     #ensure that no table is open
@@ -184,6 +196,20 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
         except ValueError:
             logger.exception(f"ERROR: {filei} not Openslide compatible")
             sys.exit(1)
+
+
+        ##### getting openslide level for requested magnification
+        native_mag = getMag(osh, filei)
+        targeted_mag = magnification_level
+        down_factor = native_mag / targeted_mag
+        relative_down_factors_idx=[np.isclose(x/down_factor,1,atol=.01) for x in osh.level_downsamples]
+        level=np.where(relative_down_factors_idx)[0]
+
+        if level.size:
+            level=level[0]
+
+        else:
+            level = osh.get_best_level_for_downsample(down_factor)
 
         samplebase = os.path.basename(filei)
         sample = os.path.splitext(samplebase)[0]
@@ -227,7 +253,7 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
             for i, (r,c) in tqdm(enumerate(zip(prs,pcs)),total =len(prs), desc=f"innter2-{phase}", leave=False): #iterate over coords. Coords in np array are Height x width vs width x Height in Openslide
 
-                io = np.asarray(osh.read_region((int(c*osh.level_downsamples[mask_level]), int(r*osh.level_downsamples[mask_level])), sample_level,
+                io = np.asarray(osh.read_region((int(c*osh.level_downsamples[mask_level]), int(r*osh.level_downsamples[mask_level])), level,
                                                 (patch_size, patch_size)))
                 img = np.asarray(io)[:, :, 0:3]
                 io = io[:, :, 0:3]  # remove alpha channel
@@ -256,7 +282,7 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, sam
 
 
 
-def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, phases, num_epochs, output_dir, validation_phases, sample_level):
+def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, phases, num_epochs, output_dir, validation_phases, magnification_level):
     ############## Model training
     
     ## Model params
@@ -389,7 +415,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
         if all_loss["val"] < best_loss_on_test:
             best_loss_on_test = all_loss["val"]
             print("  **")
-            state = { 'level': sample_level,
+            state = { 'magnification': magnification_level,
              'epoch': epoch + 1,
              'model_dict': model.state_dict(),
              'optim_dict': optim.state_dict(),
@@ -403,7 +429,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
              'nclasses':nclasses}
 
 
-            torch.save(state, f"{output_dir}/{dataname}_densenet_best_model.pth")
+            torch.save(state, f"{output_dir}/{dataname}_densenet_best_model_{magnification_level}X.pth")
         else:
             print("")
 
@@ -412,6 +438,6 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
     
 
 
-    return f"{output_dir}/{dataname}_densenet_best_model.pth"
+    return f"{output_dir}/{dataname}_densenet_best_model_{magnification_level}X.pth"
 
 
