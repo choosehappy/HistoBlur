@@ -36,7 +36,7 @@ def get_args():
     
     Train_Parser.add_argument('-i', '--gpuid', help="id of gpu to use, default 0", default=0, type=int)
     
-    Train_Parser.add_argument('-l', '--magnification_level', help="objective magnification level to use, default 20.0", default=20.0, type=float)
+    Train_Parser.add_argument('-l', '--magnification_level', help="objective magnification level to use, default 10.0", default=10.0, type=float)
     
     Train_Parser.add_argument('-m', '--enablemask', help="provide external mask (assumes .png extension file with same slide name)", action="store_true")
     
