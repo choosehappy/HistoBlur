@@ -155,15 +155,15 @@ Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pr
 
 **White area thresholding**
 
-By default, HistoBlur will only remove from the output results patches with a white ratio > 0.9. Nevertheless, higher number of patches with high white area ratio can mean less accurate results.
-On the other hand, only allowing patches with very low white ratio might mean that some tissue is skipped. 
-If you want to have a high accuracy blur detection and exclude patches with white area, you can use a stricter white ration threshold.
+By default, HistoBlur will report results on patches with white ratio > 0.9. Nevertheless, white areas can be misinterpreted as blur by the model. 
+If you want to have a high accuracy blur detection and exclude patches with white area, you can use a stricter white ratio threshold. Note that
+this might mean that some tissue on edges of white regions might be missed.
 
 ```
 Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/blur_detection_densenet_best_model_10.0X.pth -w 0.2
 ```
 
-Here, any patches with a white ratio above 0.2 will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue that can potentially be missed.
+Here, any patches with a white ratio above 0.2 will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue being potentially be missed.
 
 **Output generation with external mask**
 
@@ -204,6 +204,29 @@ Inside the output directory, run the following
 
 ```
 tensorboard --logdir logs/
+```
+
+**Running HistoBlur with Docker**
+
+In a directory organized like this:
+```
+└── dir
+    └── slides/
+        ├── slide1.svs
+        └── slide2.svs
+    └── model/
+        └── blur_detection_densenet_best_model.pth
+```
+You can run HistoBlur using the container by mounting the path to your input directory into docker:
+
+```
+docker run --gpus all -t -i -v /path/to/dir/:/app petroslk/histoblur:latest HistoBlur detect -f 'slides/*svs'  -m model/blur_detection_densenet_best_model.pth -o results
+```
+
+Pretrained models are also accessible from inside the docker container:
+
+```
+docker run --gpus all -t -i -v /path/to/dir/:/app petroslk/histoblur:latest HistoBlur detect -f 'slides/*svs'  -m /HistoBlur/pretrained_model/blur_detection_densenet_best_model_10.0X.pth -o results
 ```
 
 
