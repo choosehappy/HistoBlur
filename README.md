@@ -163,7 +163,7 @@ this might mean that some tissue on edges of white regions might be missed.
 Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/blur_detection_densenet_best_model_10.0X.pth -w 0.2
 ```
 
-Here, any patches with a white ratio above 0.2 will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue being potentially be missed.
+Here, any patches with a white ratio above 0.2 will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue being potentially missed.
 
 **Output generation with external mask**
 
@@ -186,14 +186,16 @@ HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histobl
 
 **Training model with more data**
 
-By default, HistoBlur will take 10k overlapping patches for training and 2k for validation. If you wish to train models at higher magnifications and more data, you can modify
+By default, HistoBlur will take 15k overlapping patches for training and 4k for validation. Nevertheless, some of those will be filtered if there is too much white area, meaning that the actual
+size will often be smaller.
+Nevertheless, If you wish to train models at higher magnifications and more data, you can modify
 the parameters accordingly.
 
 ```
-HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histoblur -l 20.0 -t 15000 -v 3000 -e 120
+HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histoblur -l 20.0 -t 20000 -v 8000 -e 120
 ```
 
-Here, the model will be trained at 20.0X magnification and will take a training size of 15k and a validation size of 3k. Additionally, the **-e** flag indicates the number of
+Here, the model will be trained at 20.0X magnification and will take a training size of 20k and a validation size of 8k. Additionally, the **-e** flag indicates the number of
 epochs used (100 by default, here 120).
 
 **Visualizing training graphs**
