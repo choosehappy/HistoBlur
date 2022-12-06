@@ -136,9 +136,8 @@ def generate_mask_stringent(image):
     """Function that generates mask with erosion, this removes very small regions of spur pixels"""
     imgg=rgb2gray(image)
     mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-    kernel = np.ones((5,5), np.uint8)
     mask = np.float32(mask)
-    mask =  cv2.erode(mask, kernel, iterations=4)
+    
 
     return mask
 
@@ -261,11 +260,10 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, mag
 
                 imgg=rgb2gray(img)
                 mask2=np.bitwise_and(imgg>0 ,imgg <230/255) #
-                plt.imshow(imgg,cmap="gray")
 
 
 
-                if np.count_nonzero(mask2 == True) > (patch_size * patch_size) /8:
+                if np.count_nonzero(mask2 == True) > (patch_size * patch_size) * 0.7:
                      storage[phase]["imgs"].append(io[None,::])
                      storage[phase]["filenames"].append([f'{filei}_{r}_{c}']) #add the filename to the storage array
 
