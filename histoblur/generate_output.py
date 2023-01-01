@@ -54,6 +54,7 @@ class Args_Detect(NamedTuple):
     gpuid: int
     enablemask: bool
     white_ratio: float
+    binmask: bool
 
 def generate_mask_loose(image):
     """generates a mask with thresholding, does not apply erosion"""
@@ -77,7 +78,7 @@ def divide_batch(l, n):
 
 
 
-def generate_output(images, gpuid, model, outdir, enablemask, perc_white):
+def generate_output(images, gpuid, model, outdir, enablemask, perc_white, binmask):
     """"Function that generates output """
 
     ########## Muting non conformant TIFF warning
@@ -375,6 +376,12 @@ def generate_output(images, gpuid, model, outdir, enablemask, perc_white):
 
             cv2.imwrite(f'{outdir}/tissue_masks/output_tissue_mask_{sample}.png', bin_mask)
         
+        if(binmask):
+            blur_binmask = final_output[:,:,1]
+            blur_binmask[blur_binmask != 0] = 255
+
+            cv2.imwrite(f'{outdir}/blurmask_{sample}.png', blur_binmask)
+
         #write mask to output
         with TiffWriter(f'{outdir}/output_{sample}.tif', bigtiff=True, imagej=True) as tif:
         

@@ -66,7 +66,7 @@ def get_args():
 
     Detect_parser.add_argument('-w', '--white_ratio', help="the ratio of white area to allow in each patch", default=0.9, type=float)
 
-
+    Detect_parser.add_argument('-b', '--binmask', help="return a binary mask with blur free areas only (green color)", action="store_true")
 
     args = parser.parse_args()
     
@@ -80,7 +80,7 @@ def get_args():
 
     elif args.mode == "detect":
         return Args_Detect(args.mode, args.input_wsi, args.outdir, args.model, args.gpuid,
-         args.enablemask, args.white_ratio)
+         args.enablemask, args.white_ratio, args.binmask)
     else:
         parser.error("Mode not provided - please select between train and detect")
 
@@ -157,7 +157,7 @@ def main() -> None:
     if args.mode == "detect":
         logger.info("Detect mode")
         Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
-        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, perc_white=args.white_ratio)
+        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, perc_white=args.white_ratio, binmask=args.binmask)
         results_df.to_csv(f"{args.outdir}/results_overview.csv", sep=",")
         print("Analysis complete")
 

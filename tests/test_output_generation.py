@@ -61,6 +61,12 @@ def test_output_gen(single_svs_dir, tmp_path):
     mask /= 255
     assert 1247254 == int(sum(sum(mask)))
 
+
+def test_output_gen_binmask(single_svs_dir, tmp_path):
+    rv, out = getstatusoutput(f"{PRG} detect -f '{os.fspath(single_svs_dir)}/*.svs' -m {ABS_PATH_MODEL} -o {tmp_path} -b")
+    assert rv == 0
+    assert _filenames_in(tmp_path) == _filenames_in(tmp_path).union(["output_CMU-1-JP2K-33005.tif", "results_overview.csv", "tissue_masks", "histoblur.log", "blurmask_CMU-1-JP2K-33005.png"])
+    
 def test_output_gen_external_mask(single_svs_dir, tmp_path):
     shutil.copy(ABS_MASK_PATH, single_svs_dir)
     rv, out = getstatusoutput(f"{PRG} detect -f '{os.fspath(single_svs_dir)}/*.svs' -m {ABS_PATH_MODEL} -o {tmp_path} -t")
