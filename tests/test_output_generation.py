@@ -43,7 +43,7 @@ def test_mask_generation_loose(single_svs_dir):
 
 
 def test_training(single_svs_dir, tmp_path):
-    rv, out = getstatusoutput(f"{PRG} train -f '{os.fspath(single_svs_dir)}/*.svs' -t 10 -v 5 -e 1 -l 10.0 -s 32 -o {tmp_path}")
+    rv, out = getstatusoutput(f"{PRG} train -f '{os.fspath(single_svs_dir)}/*.svs' -t 500 -v 100 -e 1 -l 10.0 -s 32 -o {tmp_path}")
     assert rv == 0
     assert _filenames_in(tmp_path) == _filenames_in(tmp_path).union(["blur_detection_val.pytable", "blur_detection_train.pytable", "blur_detection_densenet_best_model_10.0X.pth",
      "tissue_masks", "logs", "histoblur.log"])

@@ -1,16 +1,19 @@
-FROM nvidia/cuda:11.0.3-cudnn8-runtime-ubuntu20.04
+# Use NVIDIA's CUDA base image
+FROM nvidia/cuda:11.6.2-runtime-ubuntu20.04
 
+# Set non-interactive mode
+ENV DEBIAN_FRONTEND=noninteractive
 
-LABEL software="HistoBlur"
+# System update and install basic tools
+RUN apt update && \
+    apt upgrade -y && \
+    apt install -y software-properties-common wget bzip2 git ninja-build \
+    vim nano libjpeg-dev libcairo2-dev libgdk-pixbuf2.0-dev libglib2.0-dev \
+    libxml2-dev sqlite3 libopenjp2-7-dev libtiff-dev libsqlite3-dev libhdf5-dev libgl1-mesa-glx \
+    build-essential && \ 
+    apt clean
 
-RUN apt-get update --fix-missing && \
-    apt-get install -y wget bzip2 ca-certificates curl git && \
-    apt-get clean && \
-    apt-get install -y libgl1 && \
-    apt-get install -y build-essential && \
-    apt-get install libxrender1 && \
-    rm -rf /var/lib/apt/lists/*
-
+# Install Miniconda
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py38_4.12.0-Linux-x86_64.sh -O ~/miniconda.sh && \
     /bin/bash ~/miniconda.sh -b -p /opt/conda && \
     rm ~/miniconda.sh && \
@@ -20,15 +23,28 @@ RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py38_4.12.0-Linu
     echo "conda activate base" >> ~/.bashrc
 
 ENV PATH /opt/conda/bin:$PATH
-ENV LD_LIBRARY_PATH /usr/local/cuda-11.8.0/lib64:/usr/local/cuda-11.8.0/extras/CUPTI/lib64:$LD_LIBRARY_PATH
 
+# Install Python 3.10 using Conda
+RUN conda install -c anaconda python=3.9
 
+# Install conda packages
 RUN conda install -c anaconda hdf5
-RUN conda install -c conda-forge openslide
 
+# Install Meson
+RUN conda install -c conda-forge meson
+# Clone, compile, and install openslide
+RUN git clone https://github.com/openslide/openslide.git /os-dicom
+WORKDIR /os-dicom
+RUN meson setup builddir && \
+    meson compile -C builddir && \
+    meson install -C builddir
 
-RUN git clone https://github.com/choosehappy/HistoBlur.git
+# Update the LD_LIBRARY_PATH
+ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/os-dicom/builddir/src
+
+# Install Python requirements
+WORKDIR /
+COPY HistoBlur/ /HistoBlur/
 WORKDIR /HistoBlur
 RUN pip install .
 WORKDIR /app
-

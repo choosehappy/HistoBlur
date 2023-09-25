@@ -119,24 +119,13 @@ The output csv file has 13 columns with data that can be used for downstream ana
 
 The **three first columns (total_blurry_perc, mildly_blurry_perc, highly_blurry_perc)** hold the bluriness percentages that act as the main metric to detect blurry slides
 
-The **next four columns (ending with perc_white)** are the % of patches that were processed for blur detection and that had above N% of white areas in them.
-
-For example, if 70_perc_white = 13.6%, it means that 13.6% of the total patches processed were _at least_ 70% white. 
-One thing to note is that for tissue with a lot of white space, white areas introduce additional noise that can be perceived as blur by the model.
-Thus, if an entry has a large percentage of patches with high white area percentages, it is likely that more areas will be detected as blurry. This information can
-be incorporated to assess the error rate of the result.
-
-Alternatively, the user can select a more stringent white area filter ratio with **-w** and exclude patches above a certain ratio from the results (see More examples section).
-
-The **patch_size_used** column contains the patch size that was used for blur detection, this one is adjusted based on the quantity of tissue detected.
-
 The **native_magnification_level** is the magnification at which the slide was scanned. Note that you can give slides scanned at different magnification, HistoBlur will always analyse blur
 at the magnification at which the level was trained.
 
 **blur_detection_magnification** is the magnification level at which the blur was detected. Note that, although HistoBlur will mostly use the same magnification as the training, if a 
 small quantity of tissue is detected, it will go to a higher magnification level to allow for more accurate results.
 
-**npixels_at_8μpp** is the number of pixels of tissue detected at 8 micros per pixel. This gives a quick overview of the quantity of tissue present.
+**npixels_at_8mpp** is the number of pixels of tissue detected at 8 microns per pixel. This gives a quick overview of the quantity of tissue present.
 
 **processing_time** is the time it took for the slide to be processed in mins/secs.
 
@@ -163,7 +152,7 @@ this might mean that some tissue on edges of white regions might be missed.
 Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/blur_detection_densenet_best_model_10.0X.pth -w 0.2
 ```
 
-Here, any patches with a white ratio above 0.2 will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue being potentially missed.
+Here, any patches with a white area above 20% will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue being potentially missed.
 
 **Output generation with external mask**
 
@@ -222,8 +211,9 @@ In a directory organized like this:
 You can run HistoBlur using the container by mounting the path to your input directory into docker:
 
 ```
-docker run --gpus all -t -i -v /path/to/dir/:/app petroslk/histoblur:latest HistoBlur detect -f 'slides/*svs'  -m model/blur_detection_densenet_best_model.pth -o results
+docker run --shm-size=12g --gpus all -t -i -v /path/to/dir/:/app petroslk/histoblur:latest HistoBlur detect -f 'slides/*svs'  -m model/blur_detection_densenet_best_model.pth -o results
 ```
+You can adjust the **--shm-size** flag according to the amount of memory you have available
 
 Pretrained models are also accessible from inside the docker container:
 

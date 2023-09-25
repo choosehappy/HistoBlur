@@ -14,9 +14,8 @@ import openslide
 import random
 import os,sys
 
-from WSI_handling import wsi
 from typing import NamedTuple
-
+from WSI_handling import wsi
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -28,7 +27,7 @@ from skimage.filters import gaussian
 
 from tensorboardX import SummaryWriter
 from torchsummary import summary
-
+from .utils import *
 import scipy
 
 import time
@@ -49,7 +48,6 @@ class Args_train(NamedTuple):
     """ Command-line arguments """
     mode: str
     input_wsi: str
-    patchsize: int
     batchsize: int
     outdir: str
     gpuid: int
@@ -101,73 +99,14 @@ class Dataset(object):
     def __len__(self):
         return self.nitems
     
-    
-
-#Created by Rahul Nair and Petros Liakopoulos
-
-########## Helper functions
-
-#this is the level the WSI will be read, keep this level constant in output generation
-
-def divide_size(l, n): 
-    for i in range(0, l.shape[0], n):  
-        yield l[i:i + n,::] 
-
-def random_subset(a, b, nitems):
-    assert len(a) == len(b)
-    idx = np.random.randint(0,len(a),nitems)
-    return a[idx], b[idx]
-
-def asMinutes(s):
-    m = math.floor(s / 60)
-    s -= m * 60
-    return '%dm %ds' % (m, s)
-
-def timeSince(since, percent):
-    now = time.time()
-    s = now - since
-    es = s / (percent+.00001)
-    rs = es - s
-    return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
-
-######### Mask generation function
-
-def generate_mask_stringent(image):
-    """Function that generates mask with erosion, this removes very small regions of spur pixels"""
-    imgg=rgb2gray(image)
-    mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-    mask = np.float32(mask)
-    
-
-    return mask
-
-######### Magnification extraction function
-
-
-def getMag(osh, slide):
-    mag = osh.properties.get("openslide.objective-power", "NA")
-    if (mag == "NA"):  # openslide doesn't set objective-power for all SVS files: https://github.com/openslide/openslide/issues/247
-        mag = osh.properties.get("aperio.AppMag", "NA")
-    if (mag == "NA"):
-        logger.error(f"{slide} - Unknown base magnification for file, please use a WSI with ")
-    else:
-        mag = float(mag)
-
-    return mag
-
 ######### PYTABLES creation function
 
-def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, magnification_level, output_dir, mask_bool=True):
+def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_level, output_dir, enablemask=True):
     """ Create one pytables file for training set and one for validation"""
                     
-    #ensure that no table is open
-    #tables.file._open_files.close_all()
-    seed = random.randrange(sys.maxsize) #get a random seed so that we can reproducibly do the cross validation setup
-    random.seed(seed) # set the seed
-    logger.info(f"random seed (note down for reproducibility): {seed}")
-
 
     # parameters for pytables creation
+    patch_size = 256
     img_dtype = tables.UInt8Atom()  # dtype in which the images will be saved, this indicates that images will be saved as unsigned int 8 bit, i.e., [0,255]
     filenameAtom = tables.StringAtom(itemsize=255) #create an atom to store the filename of the image, just incase we need it later,
 
@@ -189,54 +128,33 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, mag
 
 
 
-    for filei in tqdm(files): #now for each of the files
+    for slide in tqdm(slides): #now for each of the files
         try:
-            osh  = openslide.OpenSlide(filei)
+            osh  = openslide.OpenSlide(slide)
         except ValueError:
-            logger.exception(f"ERROR: {filei} not Openslide compatible")
+            logger.exception(f"ERROR: {slide} not Openslide compatible")
             sys.exit(1)
 
 
-        ##### getting openslide level for requested magnification
-        native_mag = getMag(osh, filei)
-        targeted_mag = magnification_level
-        down_factor = native_mag / targeted_mag
-        relative_down_factors_idx=[np.isclose(x/down_factor,1,atol=.01) for x in osh.level_downsamples]
-        level=np.where(relative_down_factors_idx)[0]
-
-        if level.size:
-            level=level[0]
-
-        else:
-            level = osh.get_best_level_for_downsample(down_factor)
-
-        samplebase = os.path.basename(filei)
+        level, native_mag, targeted_mag = get_level_for_targeted_mag_openslide(osh, slide, magnification_level, logger)
+        
+        img, mask_level = get_mask_and_level(slide, 8)
+        
+        samplebase = os.path.basename(slide)
         sample = os.path.splitext(samplebase)[0]
-
-        osh_mask  = wsi(filei)
-        mask_level_tuple = osh_mask.get_layer_for_mpp(8)
-        mask_level = mask_level_tuple[0]
         
 
-        if(mask_bool):
-            img = osh_mask.read_region((0, 0), mask_level, osh_mask["img_dims"][mask_level])
-            mask_img=cv2.imread(os.path.splitext(filei)[0]+'.png', cv2.IMREAD_GRAYSCALE) #--- assume mask has png ending in same directory
-            width = int(img.shape[1] )
-            height = int(img.shape[0])
-            dim = (width, height)
-            mask_resize = cv2.resize(mask_img,dim)
-            mask = np.float32(mask_resize)
-            mask /= 255 #--- assume mask has png ending in same directory
-            
+        if(enablemask):
+            mask = resize_mask(slide, img)
+        
         else:
-
-            img = osh.read_region((0, 0), mask_level, osh.level_dimensions[mask_level])
-            img = np.asarray(img)[:, :, 0:3]
-            mask = generate_mask_stringent(img) #call mask generation function
+            print("Generating mask")
+            mask_final = generate_mask_stringent(img) #call mask generation function
+            mask = mask_final 
     
 
         tissue_size_pixels = sum(sum(mask))
-        logger.info(f"{tissue_size_pixels} at 8μpp")
+        logger.info(f"{tissue_size_pixels} at 8mpp")
 
         if int(tissue_size_pixels) == 0:
             logger.critical("No tissue remaining after mask generation, please select a slide with sufficient tissue")
@@ -250,7 +168,7 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, mag
             [prs,pcs]=random_subset(rs,cs,min(max_number_samples[phase],len(rs))) #randomly shuffle coords of areas that have tissue
 
 
-            for i, (r,c) in tqdm(enumerate(zip(prs,pcs)),total =len(prs), desc=f"innter2-{phase}", leave=False): #iterate over coords. Coords in np array are Height x width vs width x Height in Openslide
+            for i, (r,c) in tqdm(enumerate(zip(prs,pcs)),total =len(prs), desc=f"innter2-{phase}", leave=False):
 
                 io = np.asarray(osh.read_region((int(c*osh.level_downsamples[mask_level]), int(r*osh.level_downsamples[mask_level])), level,
                                                 (patch_size, patch_size)))
@@ -265,7 +183,7 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, mag
 
                 if np.count_nonzero(mask2 == True) > (patch_size * patch_size) * 0.7:
                      storage[phase]["imgs"].append(io[None,::])
-                     storage[phase]["filenames"].append([f'{filei}_{r}_{c}']) #add the filename to the storage array
+                     storage[phase]["filenames"].append([f'{slide}_{r}_{c}']) #add the filename to the storage array
 
         bin_mask = mask*255
         bin_mask = bin_mask.astype(np.uint8)
@@ -280,10 +198,11 @@ def create_pytables(files, phases, dataname, patch_size, trainsize, valsize, mag
 
 
 
-def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, phases, num_epochs, output_dir, validation_phases, magnification_level):
+def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_epochs, output_dir, validation_phases, magnification_level):
     ############## Model training
     
     ## Model params
+    patch_size = 256
     in_channels= 3  #input channel of the data, RGB = 3
     growth_rate=16 #change from 32 
     block_config=(2, 2, 2, 2)
@@ -315,14 +234,14 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, patch_size, 
             VerticalFlip(p=.5),
             HorizontalFlip(p=.5),
             GaussNoise(p=.5, var_limit=(10.0, 50.0)),
-            GridDistortion(p=.5, num_steps=5, distort_limit=(-0.3, 0.3), 
+            GridDistortion(p=.5, num_steps=5, distort_limit=(-0.2, 0.2), 
                             border_mode=cv2.BORDER_REFLECT),
-            ISONoise(p=.5, intensity=(0.1, 0.5), color_shift=(0.01, 0.05)),
-            RandomBrightness(p=.5, limit=(-0.2, 0.2)),
-            RandomContrast(p=.5, limit=(-0.2, 0.2)),
-            RandomGamma(p=.5, gamma_limit=(80, 120), eps=1e-07),
+            ISONoise(p=.5, intensity=(0.2, 0.4), color_shift=(0.01, 0.05)),
+            RandomBrightness(p=.5, limit=(-0.1, 0.1)),
+            RandomContrast(p=.5, limit=(-0.1, 0.1)),
+            RandomGamma(p=.5, gamma_limit=(90, 110), eps=1e-07),
             MultiplicativeNoise(p=.5, multiplier=(0.9, 1.1), per_channel=True, elementwise=True),
-            HueSaturationValue(hue_shift_limit=20,sat_shift_limit=10,val_shift_limit=10,p=.9),
+            HueSaturationValue(hue_shift_limit=10,sat_shift_limit=10,val_shift_limit=10,p=.9),
             Rotate(p=1, border_mode=cv2.BORDER_REFLECT),
             RandomCrop(patch_size,patch_size),
             ToTensor()
