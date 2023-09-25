@@ -83,10 +83,11 @@ This will train a model at 10X magnification, which is usually the best tradeoff
 Now, to run HistoBlur on a batch of slides:
 
 ```
-Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m blur_detection/blur_detection_histoblur_best_model.pth
+Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m blur_detection/blur_detection_histoblur_best_model.pth --cpus 5
 ```
 
 Here, a glob pattern is given with the path to the directory with the slides to analyse **Path has to be given in quotation marks " "**
+The user can selected the number of CPU cores to use with the **--cpus** flag
 
 # Output
 
