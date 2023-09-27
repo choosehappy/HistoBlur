@@ -177,8 +177,10 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, binma
 
         blur_perc = ((mildly_blurry+highly_blurry) * 100) / total_patches
         mildly_blur_perc = (mildly_blurry * 100) / total_patches
-        highly_blur_perc = (mildly_blurry * 100) / total_patches
-
+        highly_blur_perc = (highly_blurry * 100) / total_patches
+        print(f"total blur: {blur_perc}")
+        print(f"mild blur: {mildly_blur_perc} ")
+        print(f"mild blur: {highly_blur_perc} ")
 
         end = time.time()
         total = asMinutes(end - start)
