@@ -111,15 +111,6 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
-def generate_mask_stringent(image):
-    """Function that generates mask with erosion, this removes very small regions of spur pixels"""
-    imgg=rgb2gray(image)
-    mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-    mask = np.float32(mask)
-    
-
-    return mask
-
 def check_if_within(max_coords, new_coords, tile_size):
     max_x, max_y = max_coords
     new_x, new_y = new_coords

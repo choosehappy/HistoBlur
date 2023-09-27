@@ -145,7 +145,7 @@ def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_
         
 
         if(enablemask):
-            mask = resize_mask(slide, img)
+            mask = resize_mask(slide, img) #if mask is provided, use it
         
         else:
             print("Generating mask")
@@ -171,12 +171,10 @@ def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_
             for i, (r,c) in tqdm(enumerate(zip(prs,pcs)),total =len(prs), desc=f"innter2-{phase}", leave=False):
 
                 io = np.asarray(osh.read_region((int(c*osh.level_downsamples[mask_level]), int(r*osh.level_downsamples[mask_level])), level,
-                                                (patch_size, patch_size)))
-                img = np.asarray(io)[:, :, 0:3]
-                io = io[:, :, 0:3]  # remove alpha channel
+                                                (patch_size, patch_size)))[:, :, 0:3]
+            
 
-
-                imgg=rgb2gray(img)
+                imgg=rgb2gray(io)
                 mask2=np.bitwise_and(imgg>0 ,imgg <230/255) #
 
 

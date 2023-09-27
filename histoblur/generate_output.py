@@ -127,9 +127,6 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, binma
         ### Initializing variables
         
         patch_size = 256
-        x_step = round(patch_size * osh.level_downsamples[level])
-        y_step = x_step
-        
         shape=osh.level_dimensions[level]
         shaperound=[((d//patch_size)+1)*patch_size for d in shape]
         
@@ -145,9 +142,9 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, binma
         
         ##Extract all patches in parallel using multithreading and save into list
         patches, xs, ys = extract_patches_from_coordinates(slide, coordsx, coordsy, patch_size, ratio_white, level, cpus)
-        patches_np = np.array(patches)
+        patches_np = np.array(patches) #final np array of all patches
 
-        ## Initiate variables for blur percentage calculations
+        ## Instantiate variables for blur percentage calculations
         total_patches = len(patches)
 
         not_blurry = 0
