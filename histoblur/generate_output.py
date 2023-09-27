@@ -175,9 +175,9 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, binma
             for patch, x, y in zip(output_batch_color, batch_xs, batch_ys):
                 npmm[y//patch_size//int(ds_level):y//patch_size//int(ds_level)+1, x//patch_size//int(ds_level):x//patch_size//int(ds_level)+1] = patch
 
-        blur_perc = ((mildly_blurry+highly_blurry) * 100) / total_patches
-        mildly_blur_perc = (mildly_blurry * 100) / total_patches
-        highly_blur_perc = (highly_blurry * 100) / total_patches
+        blur_perc = round(((mildly_blurry+highly_blurry) * 100) / total_patches, 3)
+        mildly_blur_perc = round((mildly_blurry * 100) / total_patches, 3)
+        highly_blur_perc = round((highly_blurry * 100) / total_patches, 3)
         print(f"total blur: {blur_perc}")
         print(f"mild blur: {mildly_blur_perc} ")
         print(f"mild blur: {highly_blur_perc} ")
