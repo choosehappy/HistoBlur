@@ -7,15 +7,14 @@ import matplotlib.pyplot as plt
 from tqdm.autonotebook import tqdm
 from  skimage.color import rgb2gray
 import cv2
-from tifffile import TiffWriter
 
 import os
 import openslide
 import random
 import os,sys
-
+from skimage.morphology import disk, remove_small_objects
+from scipy.ndimage import minimum_filter
 from typing import NamedTuple
-from WSI_handling import wsi
 import torch
 from torch import nn
 from torch.utils.data import DataLoader
@@ -25,7 +24,7 @@ from albumentations.pytorch import ToTensor
 from scipy.ndimage import gaussian_filter
 from skimage.filters import gaussian
 
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 from torchsummary import summary
 from .utils import *
 import scipy
@@ -52,6 +51,7 @@ class Args_train(NamedTuple):
     outdir: str
     gpuid: int
     magnification: float
+    min_size_object: int
     dataset_name: str
     enablemask: bool
     trainsize: int
@@ -101,17 +101,18 @@ class Dataset(object):
     
 ######### PYTABLES creation function
 
-def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_level, output_dir, enablemask=True):
+def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_level, min_size_object, output_dir, enablemask=True):
     """ Create one pytables file for training set and one for validation"""
-                    
-
+    #global variables for thresholding
+    mask_threshold_white = 0.9          
+    white_area_threshold_in_patch = 0.7
     # parameters for pytables creation
     patch_size = 256
     img_dtype = tables.UInt8Atom()  # dtype in which the images will be saved, this indicates that images will be saved as unsigned int 8 bit, i.e., [0,255]
     filenameAtom = tables.StringAtom(itemsize=255) #create an atom to store the filename of the image, just incase we need it later,
 
     block_shape=np.array((patch_size,patch_size,3)) #block shape specifies what we'll be saving into the pytable array, here we assume that masks are 1d and images are 3d
-    filters=tables.Filters(complevel=6, complib='zlib') #we can also specify filters, such as compression, to improve storage speed
+    filters=tables.Filters(complevel=6, complib='blosc') #we can also specify filters, such as compression, to improve storage speed
 
     max_number_samples={"train":trainsize,"val":valsize}  #Sample numbers for train and validation set
 
@@ -149,11 +150,11 @@ def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_
         
         else:
             print("Generating mask")
-            mask_final = generate_mask_stringent(img) #call mask generation function
+            mask_final = generate_mask(img, min_size_object) #call mask generation function
             mask = mask_final 
     
 
-        tissue_size_pixels = sum(sum(mask))
+        tissue_size_pixels = mask.sum()
         logger.info(f"{tissue_size_pixels} at 8mpp")
 
         if int(tissue_size_pixels) == 0:
@@ -175,13 +176,13 @@ def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_
             
 
                 imgg=rgb2gray(io)
-                mask2=np.bitwise_and(imgg>0 ,imgg <230/255) #
+                mask2=np.bitwise_and(imgg>0 ,imgg <mask_threshold_white) #
 
 
 
-                if np.count_nonzero(mask2 == True) > (patch_size * patch_size) * 0.7:
+                if np.count_nonzero(mask2 == True) > (patch_size * patch_size) * white_area_threshold_in_patch:
                      storage[phase]["imgs"].append(io[None,::])
-                     storage[phase]["filenames"].append([f'{slide}_{r}_{c}']) #add the filename to the storage array
+                     storage[phase]["filenames"].append([f'{samplebase}_{r}_{c}']) #add the filename to the storage array
 
         bin_mask = mask*255
         bin_mask = bin_mask.astype(np.uint8)
@@ -209,15 +210,18 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_
     drop_rate=0
 
     
-
+    #sigma limits to gaussian noise being applied during augmentation
     blurparams = {0:[0,0],
                   1:[1,3],
                   2:[5,7]}
-    nclasses=len(blurparams)
-    device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
     
-    if str(device) == 'cpu':
-        logger.warning("Generating output with CPU, this might take longer. Switching to GPU is recommended")
+    nclasses=len(blurparams)
+
+    if torch.cuda.is_available():
+        device = torch.device(f'cuda:{gpuid}')
+    else:
+        logger.warning("GPU not found, generating output with CPU.")
+        device = torch.device('cpu')
 
     model = DenseNet(growth_rate=growth_rate, block_config=block_config,
                      num_init_features=num_init_features, 
@@ -227,7 +231,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_
 
     ######## Image transformations
     img_transform = Compose([
-            RandomScale(scale_limit=0.1,p=.9),
+            RandomScale(scale_limit=0.05,p=.9),
             PadIfNeeded(min_height=patch_size,min_width=patch_size),        
             VerticalFlip(p=.5),
             HorizontalFlip(p=.5),
@@ -249,22 +253,21 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_
     dataset={}
     dataLoader={}
 
-    for phase in path_to_pytables_list: #now for each of the phases, we're creating the dataloader
-                         #interestingly, given the batch size, i've not seen any improvements from using a num_workers>0
+    for phase in path_to_pytables_list: #each element of this list contains a string "train" or "test" at element 1 and the path to the pytables as element 2
 
-        dataset[phase[0]]=Dataset(phase[1], blurparams, img_transform=img_transform)
+        dataset[phase[0]]=Dataset(phase[1], blurparams, img_transform=img_transform) #dataset
         dataLoader[phase[0]]=DataLoader(dataset[phase[0]], batch_size=batch_size, 
                                     shuffle=True, num_workers=12,pin_memory=True) 
         logger.info(f"{phase} dataset size:\t{len(dataset[phase[0]])}")
 
-    optim = torch.optim.Adam(model.parameters()) #adam is going to be the most robust, though perhaps not the best performing, typically a good place to start
+    optim = torch.optim.Adam(model.parameters(), weight_decay=1e-5) #adam is going to be the most robust, though perhaps not the best performing, typically a good place to start
     criterion = nn.CrossEntropyLoss()
     
     writer=SummaryWriter(log_dir=f"{output_dir}/logs") #open the tensorboard visualiser
     best_loss_on_test = np.Infinity
     
     ####### Training the model
-    print(device)
+    logger.info(device)
     start_time = time.time()
     for epoch in tqdm(range(num_epochs)):
         #zero out epoch based performance variables 
@@ -274,10 +277,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_
 
         for phase in phases: #iterate through both training and validation states
 
-            if phase == 'train':
-                model.train()  # Set model to training mode
-            else: #when in eval mode, we don't want parameters to be updated
-                model.eval()   # Set model to evaluate mode
+            model.train(phase == 'train')
 
             for ii , (X, label, img_orig) in enumerate(dataLoader[phase]): #for each of the batches
                 X = X.to(device)  # [Nbatch, 3, H, W]
@@ -322,14 +322,14 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_
                     for c in range(nclasses): #essentially write out confusion matrix
                         writer.add_scalar(f'{phase}/{r}{c}', cmatrix[phase][r][c],epoch)
 
-        print('%s ([%d/%d] %d%%), train loss: %.4f test loss: %.4f' % (timeSince(start_time, (epoch+1) / num_epochs), 
-                                                     epoch+1, num_epochs ,(epoch+1) / num_epochs * 100, all_loss["train"], all_loss["val"]),end="")    
+        logger.info('%s ([%d/%d] %d%%), train loss: %.4f test loss: %.4f' % (timeSince(start_time, (epoch+1) / num_epochs), 
+                                                     epoch+1, num_epochs ,(epoch+1) / num_epochs * 100, all_loss["train"], all_loss["val"]))    
 
         #if current loss is the best we've seen, save model state with all variables
         #necessary for recreation
         if all_loss["val"] < best_loss_on_test:
             best_loss_on_test = all_loss["val"]
-            print("  **")
+            logger.info("  **")
             state = { 'magnification': magnification_level,
              'epoch': epoch + 1,
              'model_dict': model.state_dict(),
@@ -346,7 +346,7 @@ def train_model(path_to_pytables_list, dataname, gpuid, batch_size, phases, num_
 
             torch.save(state, f"{output_dir}/{dataname}_densenet_best_model_{magnification_level}X.pth")
         else:
-            print("")
+            logger.info("")
 
 
 

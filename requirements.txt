@@ -9,7 +9,7 @@ scikit_learn==1.1.2
 scipy==1.7.0
 scikit-image==0.18.1
 tables==3.6.1
-tensorboardX==2.5.1
+tensorboard==2.14.1
 tifffile==2021.11.2
 torch==2.0.0
 torchsummary==1.5.1

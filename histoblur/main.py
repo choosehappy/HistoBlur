@@ -35,6 +35,10 @@ def get_args():
     Train_Parser.add_argument('-i', '--gpuid', help="id of gpu to use, default 0", default=0, type=int)
     
     Train_Parser.add_argument('-l', '--magnification_level', help="objective magnification level to use, default 10.0", default=10.0, type=float)
+
+    Train_Parser.add_argument('-n', '--min_size_object',
+                                help="the minimum size of objects to tolerate during mask generation (allows for removal of small spurious areas, ignored when external mask provided)",
+                               default=500, type=int)
     
     Train_Parser.add_argument('-m', '--enablemask', help="provide external mask (assumes .png extension file with same slide name)", action="store_true")
     
@@ -69,6 +73,10 @@ def get_args():
 
     Detect_parser.add_argument('-w', '--white_ratio', help="the ratio of white area to allow in each patch", default=0.9, type=float)
 
+    Detect_parser.add_argument('-n', '--min_size_object',
+                                help="the minimum size of objects to tolerate during mask generation (allows for removal of small spurious areas, ignored when external mask provided)",
+                               default=64, type=int)
+
     Detect_parser.add_argument('-b', '--binmask', help="return a binary mask with blur free areas only (green color)", action="store_true")
 
     args = parser.parse_args()
@@ -78,12 +86,12 @@ def get_args():
         parser.error("No WSI provided and no validation/training set pytables provided.")
 
     if args.mode == "train":
-        return Args_train(args.mode, args.input_wsi, args.batchsize, args.outdir, args.gpuid, args.magnification_level, args.dataset_name,
+        return Args_train(args.mode, args.input_wsi, args.batchsize, args.outdir, args.gpuid, args.magnification_level, args.min_size_object, args.dataset_name,
         args.enablemask, args.trainsize, args.valsize, args.epochs, args.training, args.validation)
 
     elif args.mode == "detect":
         return Args_Detect(args.mode, args.input_wsi, args.outdir, args.batchsize, args.model, args.gpuid, args.cpus,
-         args.enablemask, args.white_ratio, args.binmask)
+         args.enablemask, args.white_ratio, args.min_size_object, args.binmask)
     else:
         parser.error("Mode not provided - please select between train and detect")
 
@@ -148,7 +156,7 @@ def main() -> None:
         print("WSI was provided, creating dataset for training and validation")
         
         dataset_train_val = create_pytables(slides=files, phases=phases, dataname=args.dataset_name, trainsize=args.trainsize,
-        valsize=args.valsize, magnification_level=args.magnification, output_dir=args.outdir, enablemask=args.enablemask)
+        valsize=args.valsize, magnification_level=args.magnification, min_size_object=args.min_size_object, output_dir=args.outdir, enablemask=args.enablemask)
         print("Dataset preparation complete")
         print("Beginning model training")
         
@@ -161,8 +169,7 @@ def main() -> None:
     if args.mode == "detect":
         logger.info("Detect mode")
         Path(f"{args.outdir}/tissue_masks").mkdir(parents=True, exist_ok=True)
-        results_df = generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, ratio_white=args.white_ratio, binmask=args.binmask, batch_size=args.batchsize, cpus=args.cpus)
-        results_df.to_csv(f"{args.outdir}/results_overview.csv", sep=",")
+        generate_output(images=files, gpuid=args.gpuid, model=args.model, outdir=args.outdir, enablemask=args.enablemask, ratio_white=args.white_ratio, min_size_object=args.min_size_object, binmask=args.binmask, batch_size=args.batchsize, cpus=args.cpus)
         print("Analysis complete")
 
 if __name__ == "__main__":

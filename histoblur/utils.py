@@ -4,16 +4,15 @@ import torch
 import time
 import math
 from torchvision.models import DenseNet
-from skimage.morphology import disk
-from skimage.filters import rank
+from skimage.morphology import disk, remove_small_objects
+from scipy.ndimage import minimum_filter
 import cv2
 import os
-from WSI_handling import wsi
 from tqdm import tqdm
 import openslide
-from multiprocessing import Pool
+from multiprocessing import Pool, cpu_count
 
-def generate_mask_loose(image):
+def generate_mask(image, min_size_object):
     """generates a mask with thresholding, does not apply erosion"""
 
     disk_size = 5
@@ -21,18 +20,10 @@ def generate_mask_loose(image):
     img = rgb2gray(image)
     img = (img * 255).astype(np.uint8)
     selem = disk(disk_size)
-    imgfilt = rank.minimum(img, selem)
+    imgfilt = minimum_filter(img, footprint=selem)
     up_tresh = imgfilt < threshold
     down_thresh =  imgfilt > 0
-    mask= np.float32(np.logical_and(up_tresh, down_thresh))
-    
-    return mask
-
-def generate_mask_stringent(image):
-    """Function that generates mask without disk expansion"""
-    imgg=rgb2gray(image)
-    mask=np.bitwise_and(imgg>0 ,imgg <230/255)
-    mask = np.float32(mask)
+    mask= np.float32(remove_small_objects(np.logical_and(up_tresh, down_thresh), min_size = min_size_object))
     
     return mask
 
@@ -40,24 +31,63 @@ def generate_mask_stringent(image):
 def get_magnification_from_mpp(native_mpp):
     """Takes native mpp and extracts magnification"""
 
-    #slide.levels._levels[0].mpp.width
-
     reference_values_mpp = [0.125, 0.25, 0.5, 1.0, 2.0]
     mag_values = [80.0, 40.0, 20.0, 10.0, 5.0]
 
-    # Find the index of the nearest reference value
-    nearest_index = min(range(len(reference_values_mpp)), key=lambda i: abs(reference_values_mpp[i] - native_mpp))
+    # Use np.isclose to find the closest matching reference mpp value
+    is_close_to_reference = [np.isclose(ref_mpp, native_mpp, atol=0.05) for ref_mpp in reference_values_mpp]
 
-    mag = mag_values[nearest_index]
+    # If there's a close match, take its corresponding magnification
+    if any(is_close_to_reference):
+        mag = mag_values[is_close_to_reference.index(True)]
+    else:
+        mag = None  # or any fallback value or behavior
 
     return mag
 
 
+def get_layer_for_mpp(img_fname, desired_mpp):
+    """
+    Finds the highest-MPP layer with an MPP > desired_mpp, rescales dimensions to match that layer.
+    """
+    osh = openslide.OpenSlide(img_fname)
+    
+    # If mpp is not provided in file
+    
+    mpp = float(osh.properties.get('openslide.mpp-x', 0.25))  # Default to 0.25 if mpp-x property does not exist
+    
+    downsamples = osh.level_downsamples
+    img_dims = osh.level_dimensions
+    
+    if(len(img_fname) >= 3 and img_fname[-3:] == 'scn'):
+        offsets = (int(osh.properties.get("openslide.bounds-y", 0)) + int(osh.properties.get("openslide.bounds-height", 0)),
+                   int(osh.properties.get("openslide.bounds-x", 0)))
+        real_dims = (int(osh.properties.get('openslide.bounds-height', img_dims[0][0])),
+                     int(osh.properties.get('openslide.bounds-width', img_dims[0][1])))
+        img_dims = [(int(real_dims[0]/down), int(real_dims[1]/down)) for down in downsamples]
+    
+    mpps = [ds*mpp for ds in downsamples]
+    
+    diff_mpps = [float(desired_mpp) - m for m in mpps]
+    valid_layers = [(index, diff_mpp) for index, diff_mpp in enumerate(diff_mpps) if diff_mpp >= 0]
+    valid_diff_mpps = [v[1] for v in valid_layers]
+    valid_layers= [v[0] for v in valid_layers]
+    
+    if not valid_layers:
+        warn_message = 'Desired_mpp is lower than minimum image MPP of ' + str(min(mpps))
+        print(warn_message)
+        target_layer = mpps.index(min(mpps))
+    else:
+        target_layer = valid_layers[valid_diff_mpps.index(min(valid_diff_mpps))]
+        
+        
+    return target_layer
+
+
+
 def getMag(osh, slide, logger):
     """Extracts magnification from openslide WSI"""
-    mag = osh.properties.get("openslide.objective-power", "NA")
-    if (mag == "NA"):  # openslide doesn't set objective-power for all SVS files: https://github.com/openslide/openslide/issues/247
-        mag = osh.properties.get("aperio.AppMag", "NA")
+    mag = osh.properties.get("openslide.objective-power", osh.properties.get("aperio.AppMag", "NA"))
     if (mag == "NA"):
         try:
             logger.warning(f"{slide} - No magnification found, estimating using mpp value ")
@@ -73,26 +103,18 @@ def getMag(osh, slide, logger):
 
 def get_mask_and_level(slide, mpp):
     """" Takes slide opened with openslide and returns image array at specified mpp level"""
-    fname=slide
-    osh_mask  = wsi(fname)
-    mask_level_tuple = osh_mask.get_layer_for_mpp(mpp)
-    mask_level = mask_level_tuple[0]
-    img = osh_mask.read_region((0, 0), mask_level, osh_mask["img_dims"][mask_level])
+    osh = openslide.OpenSlide(slide)
+    mask_level = get_layer_for_mpp(slide, mpp)
+    dims = osh.level_dimensions[mask_level]
+    img = osh.read_region((0, 0), mask_level, dims)
 
     return [np.asarray(img)[:, :, 0:3], mask_level]
 
+def divide_batch(*lists, batch_size):
+    for i in range(0, len(lists[0]), batch_size):
+        yield [lst[i:i + batch_size] for lst in lists]
 
-def divide_batch(arr, batch_size):
-    # Function to divide an array into batches
-    return [arr[i:i + batch_size] for i in range(0, len(arr), batch_size)]
 
-def custom_cmap(labels):
-    colors = {
-        0: [0, 255, 0],    # Class 0
-        1: [0, 0, 255],    # Class 1
-        2: [255, 0, 0]     # Class 2
-    }
-    return np.array([colors[label] for label in labels])
 def random_subset(a, b, nitems):
     assert len(a) == len(b)
     idx = np.random.randint(0,len(a),nitems)
@@ -110,16 +132,6 @@ def timeSince(since, percent):
     rs = es - s
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
-
-def check_if_within(max_coords, new_coords, tile_size):
-    max_x, max_y = max_coords
-    new_x, new_y = new_coords
-
-    # Check if the new coordinates and tile size are within the max coordinates
-    if (max_x > new_x + tile_size) and (max_y > new_y + tile_size):
-        return True
-    else:
-        return False
 
 def get_level_for_targeted_mag_openslide(osh, slide, training_mag, logger):
     """
@@ -152,10 +164,11 @@ def get_level_for_targeted_mag_openslide(osh, slide, training_mag, logger):
 def load_densenet_model(gpuid, model, logger):
     """load densent model and extract magnification used during training"""
 
-    device = torch.device(f'cuda:{gpuid}' if torch.cuda.is_available() else 'cpu')
-
-    if str(device) == 'cpu':
-        logger.warning("Generating output with CPU, this might take longer. Switching to GPU is recommended")
+    if torch.cuda.is_available():
+        device = torch.device(f'cuda:{gpuid}')
+    else:
+        logger.warning("GPU not found, generating output with CPU.")
+        device = torch.device('cpu')
     
     logger.info(f"model used: {model}")
 
@@ -190,48 +203,43 @@ def resize_mask(slide, img):
 
 
 def extract_coords_inside_mask(patch_size, level, osh, mask, ds_mask, t_s_mask):
-    coordsx = []
-    coordsy = []
-    for y in tqdm(range(0,osh.level_dimensions[0][1],round(patch_size * osh.level_downsamples[level])), desc="outer"):
-        for x in tqdm(range(0,osh.level_dimensions[0][0],round(patch_size * osh.level_downsamples[level])), desc=f"innter {y}", leave=False):
+    coords = []
+    for y in tqdm(range(0, osh.level_dimensions[0][1], round(patch_size * osh.level_downsamples[level])), desc="outer"):
+        for x in tqdm(range(0, osh.level_dimensions[0][0], round(patch_size * osh.level_downsamples[level])), desc=f"innter {y}", leave=False):
 
-            maskx=int(x//ds_mask)
-            masky=int(y//ds_mask)
+            maskx = int(x // ds_mask)
+            masky = int(y // ds_mask)
 
-
-            if(maskx >= mask.shape[1] or masky >= mask.shape[0]) or mask[masky:masky+t_s_mask,maskx:maskx+t_s_mask].mean() < 0.2:
+            if (maskx >= mask.shape[1] or masky >= mask.shape[0]) or mask[masky:masky+t_s_mask, maskx:maskx+t_s_mask].mean() < 0.2:
                 continue
-            coordsx.append(x)
-            coordsy.append(y)
-            
-        
-    return coordsx, coordsy
+            coords.append((x, y))
+
+    return coords
+
 
 def process_coordinates(args):
     coords, slide_path, patch_size, level, ratio_white = args  # Unpacking arguments
 
     osh = openslide.OpenSlide(slide_path)
     patches_local = []
-    xs_local = []
-    ys_local = []
+    coords_local = []  # A list of tuples (x, y) instead of two separate lists
 
-    for (x, y) in coords:
-        io = np.asarray(osh.read_region((x, y), level, (patch_size, patch_size)))[:, :, 0:3]
+    for coord in coords:
+        io = np.asarray(osh.read_region(coord, level, (patch_size, patch_size)))[:, :, 0:3]
         white_pixel_mask = (io[:, :, 0] > 232) & (io[:, :, 1] > 232) & (io[:, :, 2] > 232)
-        white_pixel_sum = np.sum(white_pixel_mask)
+        white_pixel_sum = white_pixel_mask.sum()
 
         if white_pixel_sum <= int(patch_size * patch_size * ratio_white):
             patches_local.append(io)
-            xs_local.append(x)
-            ys_local.append(y)
+            coords_local.append(coord)  # Appending the coordinate tuple
 
-    return patches_local, xs_local, ys_local
+    return patches_local, coords_local
 
-def extract_patches_from_coordinates(slide_path, coordsx, coordsy, patch_size, ratio_white, level, num_cores=None):
+
+def extract_patches_from_coordinates(slide_path, coords, patch_size, ratio_white, level, num_cores=None):
     # Group coordinates into chunks for multiprocessing
-    total_coords = list(zip(coordsx, coordsy))
-    chunk_size = len(total_coords) // num_cores
-    chunks = [total_coords[i:i+chunk_size] for i in range(0, len(total_coords), chunk_size)]
+    chunk_size = math.ceil(len(coords) / num_cores)
+    chunks = [chunk[0] for chunk in divide_batch(coords, batch_size=chunk_size)]
     
     args_list = [(chunk, slide_path, patch_size, level, ratio_white) for chunk in chunks]
 
@@ -239,8 +247,10 @@ def extract_patches_from_coordinates(slide_path, coordsx, coordsy, patch_size, r
         results = list(tqdm(pool.imap(process_coordinates, args_list), total=len(chunks), desc="Processing Chunks"))
 
     # Gather results
-    patches = sum((r[0] for r in results), [])
-    xs = sum((r[1] for r in results), [])
-    ys = sum((r[2] for r in results), [])
+    patches = [item for r in results for item in r[0]]
+    coords = [item for r in results for item in r[1]]
 
-    return patches, xs, ys
+    xs, ys = zip(*coords)
+
+    return patches, list(zip(xs, ys))
+
