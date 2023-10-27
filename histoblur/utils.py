@@ -38,19 +38,15 @@ def get_magnification_from_mpp(native_mpp):
     is_close_to_reference = [np.isclose(ref_mpp, native_mpp, atol=0.05) for ref_mpp in reference_values_mpp]
 
     # If there's a close match, take its corresponding magnification
-    if any(is_close_to_reference):
-        mag = mag_values[is_close_to_reference.index(True)]
-    else:
-        mag = None  # or any fallback value or behavior
+    mag = mag_values[is_close_to_reference.index(True)] if any(is_close_to_reference) else None
 
     return mag
 
 
-def get_layer_for_mpp(img_fname, desired_mpp):
+def get_layer_for_mpp(osh, img_fname, desired_mpp):
     """
     Finds the highest-MPP layer with an MPP > desired_mpp, rescales dimensions to match that layer.
     """
-    osh = openslide.OpenSlide(img_fname)
     
     # If mpp is not provided in file
     
@@ -101,10 +97,9 @@ def getMag(osh, slide, logger):
     return mag
 
 
-def get_mask_and_level(slide, mpp):
+def get_mask_and_level(osh, slide, mpp):
     """" Takes slide opened with openslide and returns image array at specified mpp level"""
-    osh = openslide.OpenSlide(slide)
-    mask_level = get_layer_for_mpp(slide, mpp)
+    mask_level = get_layer_for_mpp(osh, slide, mpp)
     dims = osh.level_dimensions[mask_level]
     img = osh.read_region((0, 0), mask_level, dims)
 
@@ -250,7 +245,5 @@ def extract_patches_from_coordinates(slide_path, coords, patch_size, ratio_white
     patches = [item for r in results for item in r[0]]
     coords = [item for r in results for item in r[1]]
 
-    xs, ys = zip(*coords)
-
-    return patches, list(zip(xs, ys))
+    return patches, coords
 

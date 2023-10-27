@@ -59,7 +59,7 @@ class Args_Detect(NamedTuple):
 def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_size_object, binmask, batch_size, cpus):
     """"Function that generates output """
 
-
+    
     ##### import model and get training magnification
 
     model, training_mag, device = load_densenet_model(gpuid, model, logger)
@@ -68,6 +68,16 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
     results_dict = {}
     
     failed_slides = 0
+
+    ##### Lookup table to convert DL prediction to pixel vals:
+
+    lookup_table = {
+            -1: np.array([0, 0, 0]),    # No prediction
+            0: np.array([0, 255, 0]),    # Class 0 
+            1: np.array([0, 0, 255]),    # Class 1
+            2: np.array([255, 0, 0])     # Class 2
+        }
+
     ##### Iterate through images and generate output
     for slide in images:
 
@@ -95,7 +105,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
             sample = os.path.splitext(samplebase)[0]
         
         try:
-            img, mask_level = get_mask_and_level(slide, 8)
+            img, mask_level = get_mask_and_level(osh, slide, 8)
         except openslide.lowlevel.OpenSlideError as e:
             failed_slides += 1
             logger.error(f"ERROR: {slide} Mask extraction failed due to issues with OpenSlide compatibility, skipping. Detail: {str(e)}")
@@ -121,7 +131,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
         
         patch_size = 256
         shape = osh.level_dimensions[level]
-        shaperound = [int(np.ceil(d / patch_size) * patch_size) for d in shape]
+        shaperound = [math.ceil(d / patch_size) * patch_size for d in shape]
+
 
         ds_mask = osh.level_downsamples[mask_level]
         ds_level = osh.level_downsamples[level]
@@ -144,31 +155,25 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
 
         for batch_arr, batch_coords in tqdm(divide_batch(patches_np, coords_list, batch_size=batch_size), total=total_batches, desc="Processing batches"):
             arr_out_gpu = torch.from_numpy(batch_arr.transpose(0, 3, 1, 2) / 255).type('torch.FloatTensor').to(device)
+            
             with torch.no_grad():
                 output_batch = model(arr_out_gpu)
                 output_batch = output_batch.argmax(dim=1)
                 output_batch = output_batch.detach().cpu().numpy()
 
-            # Extract rows and cols in one go
-            batch_rows, batch_cols = zip(*[(y // patch_size // int(ds_level), x // patch_size // int(ds_level)) for x, y in batch_coords])
+            # Convert batch_coords to numpy array and perform vectorized operations
+            batch_coords = np.asarray(batch_coords)
+            batch_coords = (batch_coords // patch_size // int(ds_level)).astype(int)
             
             # Place the DL outputs onto the matrix
-            npmm[batch_rows, batch_cols] = output_batch
+            npmm[batch_coords[:, 1], batch_coords[:, 0]] = output_batch
 
 
-        lookup_table = {
-            -1: np.array([0, 0, 0]),    # No prediction
-            0: np.array([0, 255, 0]),    # Class 0
-            1: np.array([0, 0, 255]),    # Class 1
-            2: np.array([255, 0, 0])     # Class 2
-        }
-
-        npmm_final = np.zeros((*npmm.shape, 3), dtype=np.uint8)
+        npmm_final = np.zeros_like(npmm, shape=(*npmm.shape, 3), dtype=np.uint8)
         npmm_final = np.vectorize(lookup_table.get, signature='()->(n)', otypes=[np.uint8])(npmm)
 
         # Count based on non-zero pixels in each channel
-        highly_blurry = np.sum(npmm_final[..., 0] != 0)  # Red channel for Class 2
-        mildly_blurry = np.sum(npmm_final[..., 2] != 0)  # Blue channel for Class 1
+        highly_blurry, _, mildly_blurry = np.sum(npmm_final != 0, axis=(0, 1))
 
         # Compute percentages
         blur_perc = round(((mildly_blurry + highly_blurry) * 100) / total_patches, 3)
