@@ -43,7 +43,7 @@ def get_magnification_from_mpp(native_mpp):
     return mag
 
 
-def get_layer_for_mpp(osh, img_fname, desired_mpp):
+def get_layer_for_mpp(osh, desired_mpp):
     """
     Finds the highest-MPP layer with an MPP > desired_mpp, rescales dimensions to match that layer.
     """
@@ -54,14 +54,7 @@ def get_layer_for_mpp(osh, img_fname, desired_mpp):
     
     downsamples = osh.level_downsamples
     img_dims = osh.level_dimensions
-    
-    if(len(img_fname) >= 3 and img_fname[-3:] == 'scn'):
-        offsets = (int(osh.properties.get("openslide.bounds-y", 0)) + int(osh.properties.get("openslide.bounds-height", 0)),
-                   int(osh.properties.get("openslide.bounds-x", 0)))
-        real_dims = (int(osh.properties.get('openslide.bounds-height', img_dims[0][0])),
-                     int(osh.properties.get('openslide.bounds-width', img_dims[0][1])))
-        img_dims = [(int(real_dims[0]/down), int(real_dims[1]/down)) for down in downsamples]
-    
+        
     mpps = [ds*mpp for ds in downsamples]
     
     diff_mpps = [float(desired_mpp) - m for m in mpps]
@@ -97,9 +90,9 @@ def getMag(osh, slide, logger):
     return mag
 
 
-def get_mask_and_level(osh, slide, mpp):
+def get_mask_and_level(osh, mpp):
     """" Takes slide opened with openslide and returns image array at specified mpp level"""
-    mask_level = get_layer_for_mpp(osh, slide, mpp)
+    mask_level = get_layer_for_mpp(osh, mpp)
     dims = osh.level_dimensions[mask_level]
     img = osh.read_region((0, 0), mask_level, dims)
 

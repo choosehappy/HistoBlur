@@ -139,7 +139,7 @@ def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_
 
         level, native_mag, targeted_mag = get_level_for_targeted_mag_openslide(osh, slide, magnification_level, logger)
         
-        img, mask_level = get_mask_and_level(osh, slide, 8)
+        img, mask_level = get_mask_and_level(osh, 8)
         
         samplebase = os.path.basename(slide)
         sample = os.path.splitext(samplebase)[0]

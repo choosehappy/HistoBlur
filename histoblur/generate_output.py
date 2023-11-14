@@ -105,7 +105,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
             sample = os.path.splitext(samplebase)[0]
         
         try:
-            img, mask_level = get_mask_and_level(osh, slide, 8)
+            img, mask_level = get_mask_and_level(osh, 8)
         except openslide.lowlevel.OpenSlideError as e:
             failed_slides += 1
             logger.error(f"ERROR: {slide} Mask extraction failed due to issues with OpenSlide compatibility, skipping. Detail: {str(e)}")
@@ -169,7 +169,6 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
             npmm[batch_coords[:, 1], batch_coords[:, 0]] = output_batch
 
 
-        npmm_final = np.zeros_like(npmm, shape=(*npmm.shape, 3), dtype=np.uint8)
         npmm_final = np.vectorize(lookup_table.get, signature='()->(n)', otypes=[np.uint8])(npmm)
 
         # Count based on non-zero pixels in each channel
