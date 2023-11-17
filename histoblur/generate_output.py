@@ -74,8 +74,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
     lookup_table = {
             -1: np.array([0, 0, 0]),    # No prediction
             0: np.array([0, 255, 0]),    # Class 0 
-            1: np.array([0, 0, 255]),    # Class 1
-            2: np.array([255, 0, 0])     # Class 2
+            1: np.array([255, 0, 0]),    # Class 1 blue BGR
+            2: np.array([0, 0, 255])     # Class 2 red BGR
         }
 
     ##### Iterate through images and generate output
@@ -171,8 +171,8 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
 
         npmm_final = np.vectorize(lookup_table.get, signature='()->(n)', otypes=[np.uint8])(npmm)
 
-        # Count based on non-zero pixels in each channel
-        highly_blurry, _, mildly_blurry = np.sum(npmm_final != 0, axis=(0, 1))
+        # Count based on non-zero pixels in each channel in BGR
+        mildly_blurry, _, highly_blurry = np.sum(npmm_final != 0, axis=(0, 1))
 
         # Compute percentages
         blur_perc = round(((mildly_blurry + highly_blurry) * 100) / total_patches, 3)

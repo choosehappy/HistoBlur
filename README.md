@@ -15,7 +15,7 @@ HistoBlur has two modes: train and detect
 
 # How does HistoBlur work?
 
-First, Histoblur takes a non-blurry representative WSI provided by the user and artificially blurs some patches to train a deep learning model.
+First, Histoblur takes one (or multiple) non-blurry representative WSI provided by the user and artificially blurs some patches to train a deep learning model.
 Then, the trained model can be used to detect blur on any slide with the same stain/scanner combination.
 
 # Installation
@@ -72,13 +72,13 @@ docker pull petroslk/histoblur:latest
 
 # Simple tutorial
 
-To train a model, just provide a WSI that is large enough and representative (ideally includes tumor, stroma regions etc...)
+To train a model, just provide one or multiple non blurry WSIs that are large enough and representative (ideally includes tumor, stroma regions etc...)
 
 ```
 HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histoblur -l 10.0
 ```
 
-This will train a model at 10X magnification, which is usually the best tradeoff between accuracy and speed. The model can be found in the output folder (file with .pth extension)
+This will train a model at 10X magnification, which is usually the best tradeoff between accuracy, memory footprint and speed. The model can be found in the output folder (file with .pth extension)
 
 Now, to run HistoBlur on a batch of slides:
 
@@ -145,15 +145,15 @@ Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pr
 
 **White area thresholding**
 
-By default, HistoBlur will report results on patches with white ratio > 0.9. Nevertheless, white areas can be misinterpreted as blur by the model. 
-If you want to have a high accuracy blur detection and exclude patches with white area, you can use a stricter white ratio threshold. Note that
-this might mean that some tissue on edges of white regions might be missed.
+By default, HistoBlur will report results on patches with white ratio of up to 0.5, meaning that patched with more than half of their pixels being white will be skipped.
+Occasionally, white areas can be misinterpreted as blur by the model. If you want to have a high accuracy blur detection and exclude patches with white area,
+you can use a stricter white ratio threshold. Note that this might mean that some tissue on edges of white regions might be missed.
 
 ```
 Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/blur_detection_densenet_best_model_10.0X.pth -w 0.2
 ```
 
-Here, any patches with a white area above 20% will not be reported in the output, yielding a more precise blur annotation but with some edge areas of tissue being potentially missed.
+Here, any patches with a white area above 20% will not be computed upon, yielding a more precise blur annotation but with some edge areas of tissue being potentially missed.
 
 **Output generation with external mask**
 
@@ -176,8 +176,8 @@ HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histobl
 
 **Training model with more data**
 
-By default, HistoBlur will take 15k overlapping patches for training and 4k for validation. Nevertheless, some of those will be filtered if there is too much white area, meaning that the actual
-size will often be smaller.
+By default, HistoBlur will take 15k overlapping patches for training and 4k for validation for each provided WSI. Nevertheless, some of those will be filtered if there is too much white area, 
+meaning that the actualsize will often be smaller.
 Nevertheless, If you wish to train models at higher magnifications and more data, you can modify
 the parameters accordingly.
 
@@ -185,7 +185,7 @@ the parameters accordingly.
 HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histoblur -l 20.0 -t 20000 -v 8000 -e 120
 ```
 
-Here, the model will be trained at 20.0X magnification and will take a training size of 20k and a validation size of 8k. Additionally, the **-e** flag indicates the number of
+Here, the model will be trained at 20.0X magnification and will take a training size of 20k and a validation size of 8k per WSI. Additionally, the **-e** flag indicates the number of
 epochs used (100 by default, here 120).
 
 **Visualizing training graphs**

@@ -23,7 +23,7 @@ def get_args():
     ##### First subparser args
     Train_Parser = subparsers.add_parser("train", help="Create pytables with tiles and train a Densenet model to detect blurry regions")
 
-    Train_Parser.add_argument('-f', '--input_wsi', help="WSI to use for training. ex: path/to/wsi.svs ", default="", type=str)
+    Train_Parser.add_argument('-f', '--input_wsi', help="WSI(s) to use for training. ex: path/to/wsi.svs or path/to/*.svs ", default="", type=str)
     
     Train_Parser.add_argument('-s', '--batchsize', help="batchsize for controlling GPU memory usage, default 128",
                         default=128, type=int)
@@ -71,7 +71,7 @@ def get_args():
 
     Detect_parser.add_argument('-t', '--enablemask', help="provide external mask (assumes .png extension file with same slide name)", action="store_true")
 
-    Detect_parser.add_argument('-w', '--white_ratio', help="the ratio of white area to allow in each patch", default=0.9, type=float)
+    Detect_parser.add_argument('-w', '--white_ratio', help="the ratio of white area to allow in each patch", default=0.5, type=float)
 
     Detect_parser.add_argument('-n', '--min_size_object',
                                 help="the minimum size of objects to tolerate during mask generation (allows for removal of small spurious areas, ignored when external mask provided)",

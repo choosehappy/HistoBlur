@@ -40,7 +40,8 @@ RUN meson setup builddir && \
     meson install -C builddir
 
 # Update the LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/os-dicom/builddir/src
+ENV LD_LIBRARY_PATH /usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
+RUN ln -s /os-dicom/builddir/src/libopenslide.so.1 /usr/local/lib/x86_64-linux-gnu/libopenslide.so.0
 
 # Install Python requirements
 WORKDIR /
