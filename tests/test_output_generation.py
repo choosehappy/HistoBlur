@@ -10,7 +10,7 @@ from subprocess import getstatusoutput, getoutput
 from histoblur.generate_output import generate_mask
 
 PRG = 'HistoBlur'
-MODEL_PATH = 'pretrained_model/blur_detection_densenet_best_model_5.0X.pth'
+MODEL_PATH = 'pretrained_model/HE_10X.pth'
 ABS_PATH_MODEL = os.path.abspath(MODEL_PATH)
 MASK_PATH = 'tests/data/CMU-1-JP2K-33005.png'
 ABS_MASK_PATH = os.path.abspath(MASK_PATH)
