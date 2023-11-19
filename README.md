@@ -1,10 +1,6 @@
 ![Histo_blur_git](https://user-images.githubusercontent.com/70012389/200196423-f7764a78-dee8-40f5-be7d-c9ed709af707.png)
 
 
-## Warning:
-This tool is still under development and has only been tested on Linux Ubuntu. A docker container and full documentation will be made available shortly.
-
-
 # Introduction
 
 HistoBlur is a deep learning based tool that allows for the fast and accurate detection of blurry regions in Whole Slide Images.
@@ -75,7 +71,7 @@ docker pull petroslk/histoblur:latest
 To train a model, just provide one or multiple non blurry WSIs that are large enough and representative (ideally includes tumor, stroma regions etc...)
 
 ```
-HistoBlur train -f "path/to/wsi.svs" -o blur_detection -d blur_detection_histoblur -l 10.0
+HistoBlur train -f "path/to/*.svs" -o blur_detection -d blur_detection_histoblur -l 10.0
 ```
 
 This will train a model at 10X magnification, which is usually the best tradeoff between accuracy, memory footprint and speed. The model can be found in the output folder (file with .pth extension)
@@ -140,17 +136,17 @@ small quantity of tissue is detected, it will go to a higher magnification level
 If you are working with H&E staining, the pretrained models might work well for you. They can be found in the pretrained_model directory.
 
 ```
-Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/blur_detection_densenet_best_model_10.0X.pth
+Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/HE_10X.pth
 ```
 
 **White area thresholding**
 
-By default, HistoBlur will report results on patches with white ratio of up to 0.5, meaning that patched with more than half of their pixels being white will be skipped.
+By default, HistoBlur will report results on patches with white ratio of up to 0.5, meaning that patches with more than half of their pixels being white will be skipped.
 Occasionally, white areas can be misinterpreted as blur by the model. If you want to have a high accuracy blur detection and exclude patches with white area,
 you can use a stricter white ratio threshold. Note that this might mean that some tissue on edges of white regions might be missed.
 
 ```
-Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/blur_detection_densenet_best_model_10.0X.pth -w 0.2
+Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m pretrained_model/HE_10X.pth -w 0.2
 ```
 
 Here, any patches with a white area above 20% will not be computed upon, yielding a more precise blur annotation but with some edge areas of tissue being potentially missed.
@@ -219,7 +215,7 @@ You can adjust the **--shm-size** flag according to the amount of memory you hav
 Pretrained models are also accessible from inside the docker container:
 
 ```
-docker run --gpus all -t -i -v /path/to/dir/:/app petroslk/histoblur:latest HistoBlur detect -f 'slides/*svs'  -m /HistoBlur/pretrained_model/blur_detection_densenet_best_model_10.0X.pth -o results
+docker run --shm-size=12g --gpus all -t -i -v /path/to/dir/:/app petroslk/histoblur:latest HistoBlur detect -f 'slides/*svs'  -m /HistoBlur/pretrained_model/HE_10X.pth -o results
 ```
 
 

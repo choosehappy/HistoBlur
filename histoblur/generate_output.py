@@ -125,7 +125,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
         
         print("Estimating tissue size")
         tissue_size_pixels = mask.sum()
-        print(f"{tissue_size_pixels} at 8mpp magnification")
+
 
         ### Initializing variables
         
