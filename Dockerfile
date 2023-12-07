@@ -1,5 +1,5 @@
 # Use NVIDIA's CUDA base image
-FROM nvidia/cuda:11.6.2-runtime-ubuntu20.04
+FROM nvidia/cuda:12.0.0-runtime-ubuntu22.04
 
 # Set non-interactive mode
 ENV DEBIAN_FRONTEND=noninteractive
@@ -45,7 +45,7 @@ RUN ln -s /os-dicom/builddir/src/libopenslide.so.1 /usr/local/lib/x86_64-linux-g
 
 # Install Python requirements
 WORKDIR /
-COPY HistoBlur/ /HistoBlur/
+COPY ./ /HistoBlur/
 WORKDIR /HistoBlur
 RUN pip install .
 WORKDIR /app
