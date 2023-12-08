@@ -186,7 +186,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
 
 
         #add results to dictionary
-        results_dict[sample] = [samplebase, blur_perc, mildly_blur_perc, highly_blur_perc, native_mag, targeted_mag, tissue_size_pixels, total, slide]
+        results_dict[sample] = [sample, blur_perc, mildly_blur_perc, highly_blur_perc, native_mag, targeted_mag, tissue_size_pixels, total, slide]
         
         if not (enablemask):        
             bin_mask = mask_final*255
