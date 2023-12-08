@@ -13,6 +13,10 @@ RUN apt update && \
     build-essential && \ 
     apt clean
 
+# Install latest openslide version
+RUN add-apt-repository ppa:openslide/openslide
+RUN apt install -y openslide-tools
+
 # Install Miniconda
 RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py38_4.12.0-Linux-x86_64.sh -O ~/miniconda.sh && \
     /bin/bash ~/miniconda.sh -b -p /opt/conda && \
@@ -29,19 +33,6 @@ RUN conda install -c anaconda python=3.9
 
 # Install conda packages
 RUN conda install -c anaconda hdf5
-
-# Install Meson
-RUN conda install -c conda-forge meson
-# Clone, compile, and install openslide
-RUN git clone https://github.com/openslide/openslide.git /os-dicom
-WORKDIR /os-dicom
-RUN meson setup builddir && \
-    meson compile -C builddir && \
-    meson install -C builddir
-
-# Update the LD_LIBRARY_PATH
-ENV LD_LIBRARY_PATH /usr/local/lib/x86_64-linux-gnu:$LD_LIBRARY_PATH
-RUN ln -s /os-dicom/builddir/src/libopenslide.so.1 /usr/local/lib/x86_64-linux-gnu/libopenslide.so.0
 
 # Install Python requirements
 WORKDIR /
