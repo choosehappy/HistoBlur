@@ -154,10 +154,10 @@ Here, any patches with a white area above 20% will not be computed upon, yieldin
 **Output generation with external mask**
 
 If binary masks for the slides being analyzed have already been generated with other tools, these can be used with
-the flag **--enablemask**. Note that HistoBlur will search for a file with an identical name and a .png extension in the same directory as the slide.
+the flag **--mask_path**. Note that HistoBlur will search for a file with an identical name and a .png extension in the provided directory.
 
 ```
-Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m blur_detection/blur_detection_histoblur_best_model.pth --enablemask
+Histoblur detect -f "path/to/images_to_test/*.svs" -o blur_quality_control -m blur_detection/blur_detection_histoblur_best_model.pth -t path/to/masks
 ```
 
 

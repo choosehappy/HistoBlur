@@ -178,7 +178,7 @@ def load_densenet_model(gpuid, model, logger):
 
 def resize_mask(sample, mask_path, img):
     """Takes .png mask with same name as slide and resizes it to mask at given mpp"""
-    print(f"{mask_path}/{sample}.png")
+    
     mask_img=cv2.imread(f"{mask_path}/{sample}.png", cv2.IMREAD_GRAYSCALE) #--- assume mask has png ending in same directory
     width = int(img.shape[1] )
     height = int(img.shape[0])
