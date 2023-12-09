@@ -35,7 +35,7 @@ def test_training(single_svs_dir, tmp_path):
     assert 1195400 == int(sum(sum(mask)))
 
 def test_output_gen(single_svs_dir, tmp_path):
-    rv, out = getstatusoutput(f"{PRG} detect -f '{os.fspath(single_svs_dir)}/*.svs' -m {ABS_PATH_MODEL} -o {tmp_path} -n 0" )
+    rv, out = getstatusoutput(f"{PRG} detect -f '{os.fspath(single_svs_dir)}/*.svs' -m {ABS_PATH_MODEL} -o {tmp_path} -n 0 -s 8" )
     assert rv == 0
     assert _filenames_in(tmp_path) == _filenames_in(tmp_path).union(["output_CMU-1-JP2K-33005.png", "results_overview.csv", "tissue_masks", "histoblur.log"])
     
@@ -48,7 +48,7 @@ def test_output_gen_binmask(single_svs_dir, tmp_path):
     
 def test_output_gen_external_mask(single_svs_dir, tmp_path):
     shutil.copy(ABS_MASK_PATH, single_svs_dir)
-    rv, out = getstatusoutput(f"{PRG} detect -f '{os.fspath(single_svs_dir)}/*.svs' -m {ABS_PATH_MODEL} -o {tmp_path} -t")
+    rv, out = getstatusoutput(f"{PRG} detect -f '{os.fspath(single_svs_dir)}/*.svs' -m {ABS_PATH_MODEL} -o {tmp_path} -t {single_svs_dir} -s 8")
     assert rv == 0
     assert _filenames_in(tmp_path) == _filenames_in(tmp_path).union(["output_CMU-1-JP2K-33005.png", "results_overview.csv", "tissue_masks", "histoblur.log"])
     

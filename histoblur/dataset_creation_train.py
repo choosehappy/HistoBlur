@@ -53,7 +53,7 @@ class Args_train(NamedTuple):
     magnification: float
     min_size_object: int
     dataset_name: str
-    enablemask: bool
+    mask_path: str
     trainsize: int
     valsize: int
     epochs: int
@@ -101,7 +101,7 @@ class Dataset(object):
     
 ######### PYTABLES creation function
 
-def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_level, min_size_object, output_dir, enablemask=True):
+def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_level, min_size_object, output_dir, mask_path):
     """ Create one pytables file for training set and one for validation"""
     #global variables for thresholding
     mask_threshold_white = 0.9          
@@ -145,8 +145,8 @@ def create_pytables(slides, phases, dataname, trainsize, valsize, magnification_
         sample = os.path.splitext(samplebase)[0]
         
 
-        if(enablemask):
-            mask = resize_mask(slide, img) #if mask is provided, use it
+        if mask_path != "":
+            mask = resize_mask(sample, mask_path, img) #if mask is provided, use it
         
         else:
             print("Generating mask")

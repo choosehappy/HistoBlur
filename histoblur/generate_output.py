@@ -51,12 +51,12 @@ class Args_Detect(NamedTuple):
     model: str
     gpuid: int
     cpus: int
-    enablemask: bool
+    mask_path: str
     white_ratio: float
     min_size_object: int
     binmask: bool
 
-def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_size_object, binmask, batch_size, cpus):
+def generate_output(images, gpuid, model, outdir, mask_path, ratio_white, min_size_object, binmask, batch_size, cpus):
     """"Function that generates output """
 
     
@@ -113,8 +113,9 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
         
                     
         
-        if(enablemask):
-            mask = resize_mask(slide, img)
+        if mask_path != "":
+            
+            mask = resize_mask(sample, mask_path, img)
         
         else:
             print("Generating mask")
@@ -188,7 +189,7 @@ def generate_output(images, gpuid, model, outdir, enablemask, ratio_white, min_s
         #add results to dictionary
         results_dict[sample] = [sample, blur_perc, mildly_blur_perc, highly_blur_perc, native_mag, targeted_mag, tissue_size_pixels, total, slide]
         
-        if not (enablemask):        
+        if mask_path == "" :        
             bin_mask = mask_final*255
             bin_mask = bin_mask.astype(np.uint8)
             #Write binary mask to png if one not provided
